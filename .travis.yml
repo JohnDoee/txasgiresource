@@ -4,6 +4,8 @@ python:
   - "3.4"
   - "2.7"
 install:
-  - pip install asgiref twisted autobahn
+  - pip install asgiref twisted autobahn coveralls
 script:
-  - nosetests
+  - nosetests --with-coverage --cover-package=txasgiresource
+after_success:
+  - coveralls
