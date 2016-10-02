@@ -1,6 +1,12 @@
-from setuptools import find_packages, setup
+import os
+
+from setuptools import setup
 
 from txasgiresource import __version__
+
+readme_path = os.path.join(os.path.dirname(__file__), "README.rst")
+with open(readme_path) as fp:
+    long_description = fp.read()
 
 setup(
     name='txasgiresource',

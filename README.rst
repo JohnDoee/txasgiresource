@@ -4,7 +4,7 @@ txasgiresource
 txasgiresource is `ASGI <http://channels.readthedocs.io/en/latest/asgi.html>`_ implemented as a Twisted Web Resource,
 very similar to `WSGIResource <http://twistedmatrix.com/documents/current/api/twisted.web.wsgi.WSGIResource.html>`_.
 
-This is inspired by `Daphne <https://github.com/django/daphne/>` but largely implemented from specs.
+This is inspired by `Daphne <https://github.com/django/daphne/>`_ but largely implemented from specs.
 
 It can also run as a daemon with or without the actual application embedded inside.
 
@@ -63,3 +63,8 @@ Develop branch
    :target: https://coveralls.io/github/JohnDoee/txasgiresource?branch=develop
 .. image:: https://travis-ci.org/JohnDoee/txasgiresource.svg?branch=develop
    :target: https://travis-ci.org/JohnDoee/txasgiresource
+
+License
+-------
+
+MIT, see LICENSE
