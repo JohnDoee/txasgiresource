@@ -46,6 +46,43 @@ As ASGI Protocol server with embedded workers and on a different port and ip
 
     twistd -n txasgi -c yourdjangoproject.asgi:channel_layer -w 6 -d tcp:5566:interface=0.0.0.0
 
+Scheduler
+---------
+
+The scheduler is built around `apscheduler <http://apscheduler.readthedocs.io/>`_ and directly maps
+to the three schedule-types:
+
+- `cron <http://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html>`_,
+- `interval <http://apscheduler.readthedocs.io/en/latest/modules/triggers/interval.html>`_
+- `date <http://apscheduler.readthedocs.io/en/latest/modules/triggers/date.html>`_.
+
+Schedule a job
+::
+
+    Channel('schedule').send({
+        'method': 'add',
+        'id': 'some_unique_job_id',
+        'reply_channel': 'schedule.time_to_run',
+        'reply_args': {'some', 'reply'},
+        'trigger': 'date',
+        'run_date': '2009-11-06 16:30:05',
+    })
+
+Setup channel for the reply
+::
+
+    channel_routing = {
+        'schedule.time_to_run': 'myapp.consumers.my_consumer',
+    }
+
+Cancel some job
+::
+
+    Channel('schedule').send({
+        'method': 'remove',
+        'id': 'some_unique_job_id',
+    })
+
 Status
 ------
 

@@ -73,7 +73,6 @@ class TestASGIWebSocket(TestCase):
 
         self.assertEqual(self.scheduler.scheduler.get_job('job_id'), None)
 
-
     def test_remove_invalid_job(self):
         self.channel_layer.send(self.scheduler.channel_name, {
             'method': 'remove',

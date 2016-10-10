@@ -42,7 +42,7 @@ SCHEDULE_ARGUMENTS = {
 class Scheduler(object):
     channel = None
 
-    def __init__(self, manager, channel_name='scheduler', timeout=60 * 60 * 24):
+    def __init__(self, manager, channel_name='schedule', timeout=60 * 60 * 24):
         self.manager = manager
         self.channel_name = channel_name
         self.timeout = timeout
@@ -73,7 +73,7 @@ class Scheduler(object):
                 job_id = job_action.pop('id')
                 trigger = job_action.pop('trigger')
                 reply_channel = job_action.pop('reply_channel')
-                reply_args = job_action.pop('reply_args', {})
+                reply_args = job_action.pop('reply_args', None)
 
                 if not reply_channel.startswith('schedule.'):
                     logger.warning('Reply channel must start with schedule., %r does not' % (reply_channel, ))
@@ -104,10 +104,7 @@ class Scheduler(object):
                              % (job_id, reply_channel, reply_args, job_action))
                 self.scheduler.add_job(self.launch_job,
                                        trigger,
-                                       kwargs={
-                                         'reply_channel': reply_channel,
-                                         'reply_args': reply_args,
-                                       },
+                                       kwargs={'reply_channel': reply_channel, 'reply_args': reply_args},
                                        id=job_id,
                                        **job_action)
             elif method == 'remove':
