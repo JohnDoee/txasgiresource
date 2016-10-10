@@ -21,6 +21,8 @@ setup(
         'asgiref>=0.13',
         'twisted>=16.0',
         'autobahn>=0.12',
+        'apscheduler>=3.2.0',
+        'six',
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
