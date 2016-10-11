@@ -5,6 +5,7 @@ import time
 
 from twisted.internet import defer, reactor
 
+from .scheduler import Scheduler
 from .utils import TimeoutException, timeout_defer
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ class Channel(object):
 class ChannelLayerManager(object):
     Timeout = TimeoutException
 
-    def __init__(self, channel_layer):
+    def __init__(self, channel_layer, start_scheduler=True):
         self.channel_layer = channel_layer
         self.ChannelFull = channel_layer.ChannelFull
         self._stop = False
@@ -61,11 +62,20 @@ class ChannelLayerManager(object):
 
         self._channels = {}
 
+        if start_scheduler:
+            self.scheduler = Scheduler(self)
+            self.scheduler.start()
+        else:
+            self.scheduler = None
+
         self.puller()
 
     @defer.inlineCallbacks
     def stop(self):
         """Stop the manager from pulling more messages"""
+        if self.scheduler:
+            self.scheduler.stop()
+
         self._stop = True
 
         for channel in list(self._channels.keys()):

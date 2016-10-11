@@ -75,7 +75,7 @@ Setup channel for the reply
         'schedule.time_to_run': 'myapp.consumers.my_consumer',
     }
 
-Cancel some job
+Cancel the job
 ::
 
     Channel('schedule').send({

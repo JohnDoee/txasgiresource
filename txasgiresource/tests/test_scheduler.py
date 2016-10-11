@@ -13,12 +13,11 @@ class TestASGIWebSocket(TestCase):
     def setUp(self):
         self.channel_layer = ChannelLayer()
         self.manager = ChannelLayerManager(self.channel_layer)
-        self.scheduler = Scheduler(self.manager)
-        self.scheduler.start()
+        self.scheduler = self.manager.scheduler
 
     @defer.inlineCallbacks
     def tearDown(self):
-        yield self.scheduler.stop()
+        yield self.manager.stop()
 
     @defer.inlineCallbacks
     def test_add_job(self):

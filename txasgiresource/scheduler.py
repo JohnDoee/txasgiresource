@@ -52,6 +52,7 @@ class Scheduler(object):
 
     @defer.inlineCallbacks
     def start(self):
+        logger.debug('Starting scheduler')
         self.scheduler.start()
 
         while True:
@@ -61,6 +62,8 @@ class Scheduler(object):
                 logger.debug('We hit a timeout in scheduler, not a lot of job activity.')
             except defer.CancelledError:
                 defer.returnValue(None)
+
+            logger.debug('We got a job: %r' % (job_action, ))
 
             method = job_action.pop('method', None)
 
@@ -73,10 +76,17 @@ class Scheduler(object):
                 job_id = job_action.pop('id')
                 trigger = job_action.pop('trigger')
                 reply_channel = job_action.pop('reply_channel')
-                reply_args = job_action.pop('reply_args', None)
+                reply_args = job_action.pop('reply_args', {})
 
                 if not reply_channel.startswith('schedule.'):
                     logger.warning('Reply channel must start with schedule., %r does not' % (reply_channel, ))
+                    continue
+
+                if isinstance(reply_channel, six.binary_type):
+                    reply_channel = reply_channel.decode("ascii")
+
+                if not isinstance(reply_args, dict):
+                    logger.warning('reply_args not a dict')
                     continue
 
                 if trigger not in SCHEDULE_ARGUMENTS:
@@ -116,10 +126,8 @@ class Scheduler(object):
                 self.scheduler.remove_job(job_id)
 
     def launch_job(self, reply_channel, reply_args):
-        logger.debug('Launching job on channel:%s args:%r' % (reply_channel, reply_args, ))
+        logger.debug('Launching job on channel:%r args:%r' % (reply_channel, reply_args, ))
         self.manager.send(reply_channel, reply_args)
 
-    @defer.inlineCallbacks
     def stop(self):
         self.scheduler.shutdown()
-        yield self.manager.stop()
