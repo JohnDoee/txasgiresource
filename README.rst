@@ -15,7 +15,7 @@ Usage
 
 As Twisted Resource
 ~~~~~~~~~~~~~~~~~~~
-::
+.. code-block:: python
 
     from twisted.web import server
 
@@ -57,7 +57,7 @@ to the three schedule-types:
 - `date <http://apscheduler.readthedocs.io/en/latest/modules/triggers/date.html>`_.
 
 Schedule a job
-::
+.. code-block:: python
 
     Channel('schedule').send({
         'method': 'add',
@@ -69,14 +69,14 @@ Schedule a job
     })
 
 Setup channel for the reply
-::
+.. code-block:: python
 
     channel_routing = {
         'schedule.time_to_run': 'myapp.consumers.my_consumer',
     }
 
 Cancel the job
-::
+.. code-block:: python
 
     Channel('schedule').send({
         'method': 'remove',
