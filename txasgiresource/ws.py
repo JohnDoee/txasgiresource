@@ -59,7 +59,7 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
                 self.sendMessage(reply['text'].encode('utf8'), False)
 
             if reply.get('close'):
-                self.dropConnection()
+                self.send_close()
                 break
 
             self.resetTimeout()

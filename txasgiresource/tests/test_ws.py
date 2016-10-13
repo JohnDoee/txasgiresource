@@ -116,7 +116,7 @@ class TestASGIWebSocket(TestCase):
         self.assertEqual(event[2], True)
 
         event = self.protocol._events.pop(0)
-        self.assertEqual(event[0], 'drop_connection')
+        self.assertEqual(event[0], 'send_close')
 
         self.protocol.onClose(True, 1013, '')
 
