@@ -22,8 +22,9 @@ class ASGIResource(resource.Resource):
                  websocket_timeout=None,
                  ping_interval=20,
                  ping_timeout=30,
-                 ws_protocols=None):
-        self.manager = ChannelLayerManager(channel_layer)
+                 ws_protocols=None,
+                 start_scheduler=True):
+        self.manager = ChannelLayerManager(channel_layer, start_scheduler=True)
         self.root_path = root_path
 
         self.http_timeout = http_timeout

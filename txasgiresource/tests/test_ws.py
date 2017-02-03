@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import logging
+
 from asgiref.inmemory import ChannelLayer
 from twisted.internet import defer, task
 from twisted.trial.unittest import TestCase
@@ -8,6 +10,8 @@ from .. import ws as asgiws
 from ..manager import ChannelLayerManager
 from ..utils import sleep
 from ..ws import ASGIWebSocketServerFactory, ASGIWebSocketServerProtocol
+
+logger = logging.getLogger(__name__)
 
 
 class DummyASGIWebSocketServerProtocol(ASGIWebSocketServerProtocol):
@@ -18,7 +22,7 @@ class DummyASGIWebSocketServerProtocol(ASGIWebSocketServerProtocol):
 
         ASGIWebSocketServerProtocol.__init__(self, *args, **kwargs)
 
-    def send_close(self, code=None, reason=None):
+    def sendClose(self, code=None, reason=None):
         self._events.append(('send_close', code))
 
     def sendMessage(self, payload, isBinary=False, fragmentSize=None, sync=False, doNotCompress=False):
@@ -63,10 +67,11 @@ class TestASGIWebSocket(TestCase):
 
     @defer.inlineCallbacks
     def test_ws_normal_session(self):
-        self.protocol.onOpen()
+        self.protocol.onConnect(None)
+        self.protocol.accepted = True
 
-        _, message = self.channel_layer.receive_many(['websocket.connect'])
-        self.assertEqual(message['scheme'], 'ws')
+        _, message = self.channel_layer.receive(['websocket.connect'])
+        self.assertEqual(message.get('scheme', 'ws'), 'ws')
         self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
         self.assertEqual(message['order'], 0)
 
@@ -76,7 +81,8 @@ class TestASGIWebSocket(TestCase):
             msg = b'happy hiphopopotamusses'
             self.protocol.onMessage(msg, False)
 
-            _, message = self.channel_layer.receive_many(['websocket.receive'])
+            _, message = self.channel_layer.receive(['websocket.receive'])
+            logger.debug('Doing loop %s' % (i, ))
 
             self.assertEqual(message.get('bytes'), None)
             self.assertEqual(message.get('text'), msg.decode('utf8'))
@@ -88,7 +94,7 @@ class TestASGIWebSocket(TestCase):
         msg = b'angry rhymenocerous'
         self.protocol.onMessage(msg, True)
 
-        _, message = self.channel_layer.receive_many(['websocket.receive'])
+        _, message = self.channel_layer.receive(['websocket.receive'])
 
         self.assertEqual(message.get('text'), None)
         self.assertEqual(message.get('bytes'), msg)
@@ -116,21 +122,22 @@ class TestASGIWebSocket(TestCase):
         self.assertEqual(event[2], True)
 
         event = self.protocol._events.pop(0)
-        self.assertEqual(event[0], 'drop_connection')
+        self.assertEqual(event[0], 'send_close')
 
         self.protocol.onClose(True, 1013, '')
 
-        _, message = self.channel_layer.receive_many(['websocket.disconnect'])
+        _, message = self.channel_layer.receive(['websocket.disconnect'])
         self.assertEqual(message['reply_channel'], reply_channel)
         self.assertEqual(message['code'], 1013)
         self.assertEqual(message['path'], self.channel_base_payload['path'])
         self.assertEqual(message['order'], 5)
 
     def test_ws_timeout(self):
-        self.protocol.onOpen()
+        self.protocol.onConnect(None)
+        self.protocol.accepted = True
 
-        _, message = self.channel_layer.receive_many(['websocket.connect'])
-        self.assertEqual(message['scheme'], 'ws')
+        _, message = self.channel_layer.receive(['websocket.connect'])
+        self.assertEqual(message.get('scheme', 'ws'), 'ws')
         self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
         self.assertEqual(message['order'], 0)
 
@@ -143,10 +150,11 @@ class TestASGIWebSocket(TestCase):
     def test_ws_channel_timeout(self):
         self.factory.idle_timeout = 0.2
 
-        self.protocol.onOpen()
+        self.protocol.onConnect(None)
+        self.protocol.accepted = True
 
-        _, message = self.channel_layer.receive_many(['websocket.connect'])
-        self.assertEqual(message['scheme'], 'ws')
+        _, message = self.channel_layer.receive(['websocket.connect'])
+        self.assertEqual(message.get('scheme', 'ws'), 'ws')
         self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
         self.assertEqual(message['order'], 0)
 
@@ -158,7 +166,8 @@ class TestASGIWebSocket(TestCase):
     def test_ws_channel_full(self):
         self.channel_layer.capacity = 0
 
-        self.protocol.onOpen()
+        self.protocol.onConnect(None)
+        self.protocol.accepted = True
 
         event = self.protocol._events.pop(0)
         self.assertEqual(event[0], 'send_close')
@@ -169,7 +178,8 @@ class TestASGIWebSocket(TestCase):
         original_send_channel_sleep_delay = asgiws.SEND_CHANNEL_SLEEP_DELAY
         asgiws.SEND_CHANNEL_SLEEP_DELAY = 0.1
 
-        self.protocol.onOpen()
+        self.protocol.onConnect(None)
+        self.protocol.accepted = True
 
         self.channel_layer.capacity = 0
 
@@ -191,7 +201,8 @@ class TestASGIWebSocket(TestCase):
         original_send_channel_sleep_delay = asgiws.SEND_CHANNEL_SLEEP_DELAY
         asgiws.SEND_CHANNEL_SLEEP_DELAY = 0.1
 
-        self.protocol.onOpen()
+        self.protocol.onConnect(None)
+        self.protocol.accepted = True
 
         self.channel_layer.capacity = 0
 
@@ -205,8 +216,56 @@ class TestASGIWebSocket(TestCase):
         yield sleep(0.5)[0]
         self.assertEqual(len(self.protocol._events), 0)
 
-        _, message = self.channel_layer.receive_many(['websocket.receive'])
+        _, message = self.channel_layer.receive(['websocket.receive'])
 
         self.assertEqual(message.get('bytes'), msg)
 
         asgiws.SEND_CHANNEL_SLEEP_DELAY = original_send_channel_sleep_delay
+
+    @defer.inlineCallbacks
+    def test_ws_request_accept(self):
+        self.protocol.onConnect(None)
+
+        _, message = self.channel_layer.receive(['websocket.connect'])
+        self.assertEqual(message.get('scheme', 'ws'), 'ws')
+        self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
+        self.assertEqual(message['order'], 0)
+
+        reply_channel = message['reply_channel']
+
+        msg = b'happy hiphopopotamusses'
+        self.protocol.onMessage(msg, False)
+        _, message = self.channel_layer.receive(['websocket.receive'])
+        self.assertEqual(message, None)
+
+        self.channel_layer.send(reply_channel, {'accept': True})
+
+        yield sleep(0.2)[0]
+
+        self.protocol.onMessage(msg, False)
+        _, message = self.channel_layer.receive(['websocket.receive'])
+        self.assertNotEqual(message, None)
+
+    @defer.inlineCallbacks
+    def test_ws_request_accept_rejected(self):
+        self.protocol.onConnect(None)
+
+        _, message = self.channel_layer.receive(['websocket.connect'])
+        self.assertEqual(message.get('scheme', 'ws'), 'ws')
+        self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
+        self.assertEqual(message['order'], 0)
+
+        reply_channel = message['reply_channel']
+
+        msg = b'happy hiphopopotamusses'
+        self.protocol.onMessage(msg, False)
+        _, message = self.channel_layer.receive(['websocket.receive'])
+        self.assertEqual(message, None)
+
+        self.channel_layer.send(reply_channel, {'accept': False})
+
+        yield sleep(0.2)[0]
+
+        self.protocol.onMessage(msg, False)
+        _, message = self.channel_layer.receive(['websocket.receive'])
+        self.assertEqual(message, None)

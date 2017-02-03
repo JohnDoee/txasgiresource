@@ -5,6 +5,7 @@ import time
 
 from twisted.internet import defer, reactor
 
+from .scheduler import Scheduler
 from .utils import TimeoutException, timeout_defer
 
 logger = logging.getLogger(__name__)
@@ -47,13 +48,13 @@ class Channel(object):
 
     def send(self, channel, payload):
         """Send a message to a channel"""
-        self.manager.channel_layer.send(channel, payload)
+        self.manager.send(channel, payload)
 
 
 class ChannelLayerManager(object):
     Timeout = TimeoutException
 
-    def __init__(self, channel_layer):
+    def __init__(self, channel_layer, start_scheduler=True):
         self.channel_layer = channel_layer
         self.ChannelFull = channel_layer.ChannelFull
         self._stop = False
@@ -61,11 +62,20 @@ class ChannelLayerManager(object):
 
         self._channels = {}
 
+        if start_scheduler:
+            self.scheduler = Scheduler(self)
+            self.scheduler.start()
+        else:
+            self.scheduler = None
+
         self.puller()
 
     @defer.inlineCallbacks
     def stop(self):
         """Stop the manager from pulling more messages"""
+        if self.scheduler:
+            self.scheduler.stop()
+
         self._stop = True
 
         for channel in list(self._channels.keys()):
@@ -86,7 +96,7 @@ class ChannelLayerManager(object):
                 time.sleep(0.05)
                 continue
 
-            channel, message = self.channel_layer.receive_many(channels, block=False)
+            channel, message = self.channel_layer.receive(channels, block=False)
             if not channel:
                 time.sleep(0.01)
                 continue
@@ -114,12 +124,18 @@ class ChannelLayerManager(object):
         """Get a new channel name of a given type"""
         return self.channel_layer.new_channel(channel_type)
 
-    def get_channel(self, channel_type, timeout=None):
+    def get_channel(self, channel_type, timeout=None, create=True):
         """Get a channel that can be pulled from of type channel_type"""
         if self._stop:
             raise StoppedManagerException()
 
-        reply_channel = self.new_channel(channel_type)
+        if create:
+            reply_channel = self.new_channel(channel_type)
+        else:
+            reply_channel = channel_type
         self._channels[reply_channel] = channel = Channel(self, reply_channel, timeout)
 
         return channel
+
+    def send(self, channel, payload):
+        self.channel_layer.send(channel, payload)

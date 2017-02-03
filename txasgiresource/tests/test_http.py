@@ -45,7 +45,7 @@ class TestASGIHTTPResource(TestCase):
         self.channel_base_payload['_ssl'] = 's'
         self.resource.render(self.request)
 
-        _, message = self.channel_layer.receive_many(['http.request'])
+        _, message = self.channel_layer.receive(['http.request'])
 
         self.assertTrue(message['reply_channel'].startswith('http.response!'))
         self.assertEqual(message['http_version'], '1.0')
@@ -56,14 +56,14 @@ class TestASGIHTTPResource(TestCase):
         self.assertEqual(message['root_path'], '')
         self.assertListEqual(message['headers'], [[b'host', b'example.com'],
                                                   [b'user-agent', b'hack attack 1.0']])
-        self.assertEqual(message.get('more_body', None), None)
+        self.assertEqual(message.get('body_channel', None), None)
         self.assertEqual(message.get('body', b''), b'')
 
     @defer.inlineCallbacks
     def test_http_reply(self):
         self.resource.render(self.request)
 
-        _, message = self.channel_layer.receive_many(['http.request'])
+        _, message = self.channel_layer.receive(['http.request'])
 
         self.channel_layer.send(message['reply_channel'], {
             'status': 200,
@@ -91,7 +91,7 @@ class TestASGIHTTPResource(TestCase):
     def test_http_reply_chunked_body(self):
         self.resource.render(self.request)
 
-        _, message = self.channel_layer.receive_many(['http.request'])
+        _, message = self.channel_layer.receive(['http.request'])
 
         self.channel_layer.send(message['reply_channel'], {
             'status': 200,
@@ -127,8 +127,8 @@ class TestASGIHTTPResource(TestCase):
 
         self.resource.render(self.request)
 
-        _, message = self.channel_layer.receive_many(['http.request'])
-        self.assertEqual(message.get('more_body'), None)
+        _, message = self.channel_layer.receive(['http.request'])
+        self.assertEqual(message.get('body_channel'), None)
         self.assertEqual(message['body'], body)
 
     def test_http_request_more_content(self):
@@ -138,16 +138,16 @@ class TestASGIHTTPResource(TestCase):
 
         self.resource.render(self.request)
 
-        _, message = self.channel_layer.receive_many(['http.request'])
-        more_body = message['more_body']
-        self.assertTrue(more_body.startswith('http.request.body?'))
+        _, message = self.channel_layer.receive(['http.request'])
+        body_channel = message['body_channel']
+        self.assertTrue(body_channel.startswith('http.request.body?'))
         self.assertEqual(message['body'], body[:asgihttp.MAXIMUM_CONTENT_SIZE])
 
-        _, message = self.channel_layer.receive_many([more_body])
+        _, message = self.channel_layer.receive([body_channel])
         self.assertEqual(message['content'], body[asgihttp.MAXIMUM_CONTENT_SIZE:asgihttp.MAXIMUM_CONTENT_SIZE * 2])
         self.assertEqual(message['more_content'], True)
 
-        _, message = self.channel_layer.receive_many([more_body])
+        _, message = self.channel_layer.receive([body_channel])
         self.assertEqual(message['content'], body[asgihttp.MAXIMUM_CONTENT_SIZE * 2:])
         self.assertEqual(message['more_content'], False)
 
@@ -171,8 +171,8 @@ class TestASGIHTTPResource(TestCase):
         except:
             pass
 
-        _, request_message = self.channel_layer.receive_many(['http.request'])
-        _, disconnect_message = self.channel_layer.receive_many(['http.disconnect'])
+        _, request_message = self.channel_layer.receive(['http.request'])
+        _, disconnect_message = self.channel_layer.receive(['http.disconnect'])
         self.assertEqual(request_message['reply_channel'], disconnect_message['reply_channel'])
         self.assertEqual(request_message['path'], disconnect_message['path'])
         self.assertEqual(disconnect_message['path'], self.channel_base_payload['path'])
@@ -202,11 +202,11 @@ class TestASGIHTTPResource(TestCase):
 
         yield sleep(0.5)[0]
 
-        _, message = self.channel_layer.receive_many(['http.request'])
-        more_body = message['more_body']
+        _, message = self.channel_layer.receive(['http.request'])
+        body_channel = message['body_channel']
 
-        _, message = self.channel_layer.receive_many([more_body])
-        _, message = self.channel_layer.receive_many([more_body])
+        _, message = self.channel_layer.receive([body_channel])
+        _, message = self.channel_layer.receive([body_channel])
         self.assertEqual(message['closed'], True)
 
         asgihttp.CHUNK_SLEEP_DELAY = original_chunk_sleep_delay

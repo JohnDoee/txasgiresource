@@ -41,7 +41,7 @@ class ASGIHTTPResource(resource.Resource):
 
             channel_payload['body'] = content.read(MAXIMUM_CONTENT_SIZE)
             if content.tell() < content_size:
-                channel_payload['more_body'] = request_body_chunk_channel
+                channel_payload['body_channel'] = request_body_chunk_channel
                 logger.info('We have more body')
 
         # do the first send

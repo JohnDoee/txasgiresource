@@ -16,9 +16,11 @@ SEND_CHANNEL_RETRY_COUNT = 3
 
 class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin):
     order = 0
+    accepted = False
     opened = False
+    accept_promise = None
 
-    def onOpen(self):
+    def onConnect(self, request):
         self.channel = self.factory.manager.get_channel('websocket.send!', self.factory.idle_timeout)
         self.opened = True
 
@@ -32,12 +34,15 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
             self.channel.send('websocket.connect', channel_payload)
         except self.factory.manager.ChannelFull:
             logger.debug('Channel full')
-            self.send_close(self.CLOSE_STATUS_CODE_TRY_AGAIN_LATER)
+            self.sendClose(self.CLOSE_STATUS_CODE_TRY_AGAIN_LATER)
             return
 
         self.setTimeout(self.factory.idle_timeout)
+        self.accept_promise = defer.Deferred()
 
         self.send_replies()
+
+        return self.accept_promise
 
     @defer.inlineCallbacks
     def send_replies(self):
@@ -52,6 +57,16 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
                 self.dropConnection(abort=True)
                 break
 
+            if not self.accepted:
+                if reply.get('accept', True):
+                    logger.debug('Accepting websocket connection')
+                    self.accepted = True
+                    self.accept_promise.callback(None)
+                else:
+                    logger.debug('Denying websocket connection')
+                    self.sendClose()
+                    break
+
             if reply.get('binary'):
                 self.sendMessage(reply['binary'], True)
 
@@ -59,13 +74,16 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
                 self.sendMessage(reply['text'].encode('utf8'), False)
 
             if reply.get('close'):
-                self.dropConnection()
+                self.sendClose()
                 break
 
             self.resetTimeout()
 
     @defer.inlineCallbacks
     def onMessage(self, payload, isBinary):
+        if not self.accepted:
+            defer.returnValue(None)
+
         self.resetTimeout()
 
         self.order += 1
@@ -91,7 +109,7 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
                 yield sleep(i * SEND_CHANNEL_SLEEP_DELAY)[0]
         else:
             logger.debug('Channel full, killing connection')
-            self.send_close(self.CLOSE_STATUS_CODE_TRY_AGAIN_LATER)
+            self.sendClose(self.CLOSE_STATUS_CODE_TRY_AGAIN_LATER)
 
     def onClose(self, wasClean, code, reason):
         if not self.opened:
