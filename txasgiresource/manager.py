@@ -96,7 +96,7 @@ class ChannelLayerManager(object):
                 time.sleep(0.05)
                 continue
 
-            channel, message = self.channel_layer.receive_many(channels, block=False)
+            channel, message = self.channel_layer.receive(channels, block=False)
             if not channel:
                 time.sleep(0.01)
                 continue

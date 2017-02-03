@@ -5,7 +5,6 @@ from twisted.internet import defer
 from twisted.trial.unittest import TestCase
 
 from ..manager import ChannelLayerManager
-from ..scheduler import Scheduler
 from ..utils import sleep
 
 
@@ -37,7 +36,7 @@ class TestASGIWebSocket(TestCase):
         })
 
         for _ in range(15):
-            _, message = self.channel_layer.receive_many(['schedule.test'])
+            _, message = self.channel_layer.receive(['schedule.test'])
             if message:
                 break
             yield sleep(0.1)[0]
