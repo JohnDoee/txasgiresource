@@ -23,7 +23,8 @@ class ASGIResource(resource.Resource):
                  ping_interval=20,
                  ping_timeout=30,
                  ws_protocols=None,
-                 start_scheduler=True):
+                 start_scheduler=True,
+                 use_proxy_headers=False):
         self.manager = ChannelLayerManager(channel_layer, start_scheduler=True)
         self.root_path = root_path
 
@@ -32,6 +33,7 @@ class ASGIResource(resource.Resource):
         self.ping_interval = ping_interval
         self.ping_timeout = ping_timeout
         self.ws_protocols = ws_protocols
+        self.use_proxy_headers = use_proxy_headers
 
         resource.Resource.__init__(self)
 
@@ -82,6 +84,20 @@ class ASGIResource(resource.Resource):
         else:
             client_info = None
             server_info = None
+
+        if self.use_proxy_headers:
+            proxy_forwarded_host = request.requestHeaders.getRawHeaders(b"x-forwarded-for", [b""])[0].split(b",")[0].strip()
+            proxy_forwarded_port = request.requestHeaders.getRawHeaders(b"x-forwarded-port", [b""])[0].split(b",")[0].strip()
+
+            if proxy_forwarded_host:
+                port = 0
+                if proxy_forwarded_port:
+                    try:
+                        port = int(proxy_forwarded_port)
+                    except ValueError:
+                        pass
+
+                client_info = [proxy_forwarded_host.decode('utf-8'), port]
 
         # build base payload used by both websocket and normal as handshake
         channel_base_payload = {

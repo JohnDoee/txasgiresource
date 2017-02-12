@@ -16,6 +16,7 @@ class Options(usage.Options):
         ["channel_layer", "c", None, "Channel layer"],
         ["description", "d", "tcp:8000:interface=127.0.0.1", "Twisted server description"],
         ["workers", "w", "0", "Number of Channels workers"],
+        ["proxy_headers", "p", False, "Parse proxy header and use them to replace client ip"],
     ]
 
 class ASGIService(Service):
