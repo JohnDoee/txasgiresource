@@ -41,5 +41,5 @@ setup(
         'Topic :: Internet :: WWW/HTTP',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-    namespace_packages=['twisted'],
+#    namespace_packages=['twisted'],
 )
