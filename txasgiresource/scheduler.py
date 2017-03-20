@@ -60,8 +60,13 @@ class Scheduler(object):
                 job_action = yield self.channel.get_reply()
             except self.manager.Timeout:
                 logger.debug('We hit a timeout in scheduler, not a lot of job activity.')
+                continue
             except defer.CancelledError:
                 defer.returnValue(None)
+
+            if not job_action:
+                logger.info('Empty job_action, killing scheduler')
+                break
 
             logger.debug('We got a job: %r' % (job_action, ))
 
