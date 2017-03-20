@@ -57,6 +57,7 @@ to the three schedule-types:
 - `date <http://apscheduler.readthedocs.io/en/latest/modules/triggers/date.html>`_.
 
 Schedule a job
+
 .. code-block:: python
 
     Channel('schedule').send({
@@ -69,6 +70,7 @@ Schedule a job
     })
 
 Setup channel for the reply
+
 .. code-block:: python
 
     channel_routing = {
@@ -76,6 +78,7 @@ Setup channel for the reply
     }
 
 Cancel the job
+
 .. code-block:: python
 
     Channel('schedule').send({

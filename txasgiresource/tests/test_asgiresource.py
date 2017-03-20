@@ -96,8 +96,25 @@ class TestASGIResource(TestCase):
         request.host = UNIXAddress(b'/home/test/sockets/server.sock')
 
         request.uri = b'http://dummy/test/path'
+        request.requestHeaders.addRawHeader('X-Forwarded-For', '127.4.3.2')
+        request.requestHeaders.addRawHeader('X-Forwarded-Port', '12312')
         self.resource.render(request)
 
         dispatcher, _, channel_base_payload = self.resource._dispatches[0]
         self.assertEqual(channel_base_payload['client'], None)
+        self.assertEqual(channel_base_payload['server'], None)
+
+    def test_use_proxy_headers(self):
+        self.resource.use_proxy_headers = True
+
+        request = DummyRequest([b'test', b'path'])
+        request.requestHeaders.addRawHeader('X-Forwarded-For', '127.4.3.2')
+        request.requestHeaders.addRawHeader('X-Forwarded-Port', '12312')
+        request.host = UNIXAddress(b'/home/test/sockets/server.sock')
+
+        request.uri = b'http://dummy/test/path'
+        self.resource.render(request)
+
+        dispatcher, _, channel_base_payload = self.resource._dispatches[0]
+        self.assertEqual(channel_base_payload['client'], ['127.4.3.2', 12312])
         self.assertEqual(channel_base_payload['server'], None)
