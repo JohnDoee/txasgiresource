@@ -1,3 +1,6 @@
+import random
+import string
+
 from twisted.internet import defer, reactor
 from twisted.web import resource
 
@@ -44,3 +47,7 @@ def send_error_page(request, status, brief, detail):
     error_page = resource.ErrorPage(status, brief, detail).render(request)
     request.write(error_page)
     request.finish()
+
+
+def random_str(choices=string.ascii_letters, length=10):
+    return "".join(random.choice(choices) for _ in range(length))

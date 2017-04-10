@@ -6,7 +6,7 @@ import time
 from twisted.internet import defer, reactor
 
 from .scheduler import Scheduler
-from .utils import TimeoutException, timeout_defer
+from .utils import TimeoutException, random_str, timeout_defer
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +57,12 @@ class ChannelLayerManager(object):
     def __init__(self, channel_layer, start_scheduler=True):
         self.channel_layer = channel_layer
         self.ChannelFull = channel_layer.ChannelFull
+        self.send_channel =  'txasgi.response.%s!' % random_str()
         self._stop = False
         self.stopped = defer.Deferred()  # defer to add callback to, to get reply when manager is finished
 
         self._channels = {}
+        self._pull_channels = set()
 
         if start_scheduler:
             self.scheduler = Scheduler(self)
@@ -91,7 +93,7 @@ class ChannelLayerManager(object):
                 reactor.callFromThread(self.stopped.callback, None)
                 return
 
-            channels = self._channels.keys()
+            channels = [self.send_channel] + list(self._pull_channels)
             if not channels:
                 time.sleep(0.05)
                 continue
@@ -114,25 +116,31 @@ class ChannelLayerManager(object):
 
     def remove_channel(self, channel):
         channel = self._channels.pop(channel, None)
+        self._pull_channels.discard(channel)
         if channel:
             channel.cleanup()
 
     def puller(self):
         reactor.callInThread(self._puller)
 
-    def new_channel(self, channel_type):
+    def new_channel(self, prefix=None):
         """Get a new channel name of a given type"""
-        return self.channel_layer.new_channel(channel_type)
+        if prefix:
+            return prefix + random_str()
+        else:
+            return self.send_channel + random_str()
 
-    def get_channel(self, channel_type, timeout=None, create=True):
+    def get_channel(self, timeout=None, channel_name=None):
         """Get a channel that can be pulled from of type channel_type"""
         if self._stop:
             raise StoppedManagerException()
 
-        if create:
-            reply_channel = self.new_channel(channel_type)
+        if channel_name:
+            reply_channel = channel_name
+            self._pull_channels.add(channel_name)
         else:
-            reply_channel = channel_type
+            reply_channel = self.new_channel()
+
         self._channels[reply_channel] = channel = Channel(self, reply_channel, timeout)
 
         return channel

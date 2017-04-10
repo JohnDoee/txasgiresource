@@ -47,7 +47,7 @@ class TestASGIHTTPResource(TestCase):
 
         _, message = self.channel_layer.receive(['http.request'])
 
-        self.assertTrue(message['reply_channel'].startswith('http.response!'))
+        self.assertTrue(message['reply_channel'].startswith('txasgi.response'))
         self.assertEqual(message['http_version'], '1.0')
         self.assertEqual(message['method'], 'GET')
         self.assertEqual(message['scheme'], 'https')
@@ -205,7 +205,7 @@ class TestASGIHTTPResource(TestCase):
         _, message = self.channel_layer.receive(['http.request'])
         body_channel = message['body_channel']
 
-        _, message = self.channel_layer.receive([body_channel])
+        channel, message = self.channel_layer.receive([body_channel])
         _, message = self.channel_layer.receive([body_channel])
         self.assertEqual(message['closed'], True)
 

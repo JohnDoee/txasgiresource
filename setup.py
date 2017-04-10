@@ -19,7 +19,7 @@ setup(
     license='MIT',
     packages=['txasgiresource', 'txasgiresource.tests', 'twisted.plugins'],
     install_requires=[
-        'asgiref>=0.13',
+        'asgiref>=1.1.0',
         'twisted>=16.0',
         'autobahn>=0.12',
         'apscheduler>=3.2.0',
@@ -41,5 +41,4 @@ setup(
         'Topic :: Internet :: WWW/HTTP',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-#    namespace_packages=['twisted'],
 )

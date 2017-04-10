@@ -21,7 +21,7 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
     accept_promise = None
 
     def onConnect(self, request):
-        self.channel = self.factory.manager.get_channel('websocket.send!', self.factory.idle_timeout)
+        self.channel = self.factory.manager.get_channel(self.factory.idle_timeout)
         self.opened = True
 
         channel_payload = self.factory.channel_base_payload

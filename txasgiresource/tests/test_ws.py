@@ -72,7 +72,8 @@ class TestASGIWebSocket(TestCase):
 
         _, message = self.channel_layer.receive(['websocket.connect'])
         self.assertEqual(message.get('scheme', 'ws'), 'ws')
-        self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
+        self.assertTrue(message['reply_channel'].startswith('txasgi.response'))
+        self.assertTrue('!' in message['reply_channel'])
         self.assertEqual(message['order'], 0)
 
         reply_channel = message['reply_channel']
@@ -138,7 +139,8 @@ class TestASGIWebSocket(TestCase):
 
         _, message = self.channel_layer.receive(['websocket.connect'])
         self.assertEqual(message.get('scheme', 'ws'), 'ws')
-        self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
+        self.assertTrue(message['reply_channel'].startswith('txasgi.response'))
+        self.assertTrue('!' in message['reply_channel'])
         self.assertEqual(message['order'], 0)
 
         self.protocol.clock.pump([800])
@@ -155,7 +157,8 @@ class TestASGIWebSocket(TestCase):
 
         _, message = self.channel_layer.receive(['websocket.connect'])
         self.assertEqual(message.get('scheme', 'ws'), 'ws')
-        self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
+        self.assertTrue(message['reply_channel'].startswith('txasgi.response'))
+        self.assertTrue('!' in message['reply_channel'])
         self.assertEqual(message['order'], 0)
 
         yield sleep(0.4)[0]
@@ -228,7 +231,8 @@ class TestASGIWebSocket(TestCase):
 
         _, message = self.channel_layer.receive(['websocket.connect'])
         self.assertEqual(message.get('scheme', 'ws'), 'ws')
-        self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
+        self.assertTrue(message['reply_channel'].startswith('txasgi.response'))
+        self.assertTrue('!' in message['reply_channel'])
         self.assertEqual(message['order'], 0)
 
         reply_channel = message['reply_channel']
@@ -252,7 +256,8 @@ class TestASGIWebSocket(TestCase):
 
         _, message = self.channel_layer.receive(['websocket.connect'])
         self.assertEqual(message.get('scheme', 'ws'), 'ws')
-        self.assertTrue(message['reply_channel'].startswith('websocket.send!'))
+        self.assertTrue(message['reply_channel'].startswith('txasgi.response'))
+        self.assertTrue('!' in message['reply_channel'])
         self.assertEqual(message['order'], 0)
 
         reply_channel = message['reply_channel']
