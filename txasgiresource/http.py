@@ -33,11 +33,13 @@ class ASGIHTTPResource(resource.Resource):
         content.seek(0, 0)
 
         # setup channel
-        channel = self.manager.get_channel('http.response!', self.timeout)
+        channel = self.manager.get_channel(self.timeout)
+        # make_send_channel()
         channel_payload['reply_channel'] = channel.reply_channel
 
         if content_size > 0:
             request_body_chunk_channel = self.manager.new_channel('http.request.body?')
+            #request_body_chunk_channel = self.manager.new_channel()
 
             channel_payload['body'] = content.read(MAXIMUM_CONTENT_SIZE)
             if content.tell() < content_size:

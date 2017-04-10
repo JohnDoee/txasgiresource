@@ -47,7 +47,7 @@ class Scheduler(object):
         self.channel_name = channel_name
         self.timeout = timeout
 
-        self.channel = self.manager.get_channel(self.channel_name, self.timeout, create=False)
+        self.channel = self.manager.get_channel(self.timeout, channel_name=self.channel_name)
         self.scheduler = TwistedScheduler()
 
     @defer.inlineCallbacks
@@ -57,6 +57,7 @@ class Scheduler(object):
 
         while True:
             try:
+                logger.debug('Pulling...')
                 job_action = yield self.channel.get_reply()
             except self.manager.Timeout:
                 logger.debug('We hit a timeout in scheduler, not a lot of job activity.')

@@ -8,7 +8,7 @@ from ..manager import ChannelLayerManager
 from ..utils import sleep
 
 
-class TestASGIWebSocket(TestCase):
+class TestASGIScheduler(TestCase):
     def setUp(self):
         self.channel_layer = ChannelLayer()
         self.manager = ChannelLayerManager(self.channel_layer)
