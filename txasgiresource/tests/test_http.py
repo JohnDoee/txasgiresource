@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
 import os
+import shutil
+import tempfile
 
 from asgiref.inmemory import ChannelLayer
 from twisted.internet import defer
@@ -20,6 +22,10 @@ class TestASGIHTTPResource(TestCase):
 
         self.channel_layer = ChannelLayer()
         self.manager = ChannelLayerManager(self.channel_layer)
+        self.temp_path = tempfile.mkdtemp()
+        self._prepare_request()
+
+    def _prepare_request(self):
         self.channel_base_payload = {
             'path': '/test/path',
             'query_string': b'a=b',
@@ -34,11 +40,12 @@ class TestASGIHTTPResource(TestCase):
         self.request = DummyRequest([b'test', b'path'])
         self.request.uri = b'http://dummy/test/path?a=b'
 
-        self.resource = ASGIHTTPResource(self.manager, self.channel_base_payload, 1)
+        self.resource = ASGIHTTPResource(self.manager, self.channel_base_payload, 1, use_x_sendfile=True)
         self.request_finished_defer = self.request.notifyFinish()
 
     @defer.inlineCallbacks
     def tearDown(self):
+        shutil.rmtree(self.temp_path)
         yield self.manager.stop()
 
     def test_http_request(self):
@@ -223,3 +230,62 @@ class TestASGIHTTPResource(TestCase):
 
         self.assertEqual(self.request.responseCode, 503)
         self.assertIn(b'Channel is full while sending chunks', self.request.written[0])
+
+    @defer.inlineCallbacks
+    def test_http_request_sendfile(self):
+        temp_file = os.path.join(self.temp_path, 'tempfile')
+        file_payload = b'a' * 50
+        with open(temp_file, 'wb') as f:
+            f.write(file_payload)
+
+        # normal request
+        self.resource.render(self.request)
+
+        _, message = self.channel_layer.receive(['http.request'])
+
+        self.channel_layer.send(message['reply_channel'], {
+            'status': 200,
+            'headers': [[b'x-sendfile', temp_file.encode('utf-8')]],
+            'content': b'',
+        })
+        yield self.request_finished_defer
+
+        self.assertEqual(self.request.responseCode, 200)
+        self.assertEqual(self.request.written[0], file_payload)
+
+        # cached request
+        etag = self.request.responseHeaders.getRawHeaders('etag')
+
+        self._prepare_request()
+        self.request.requestHeaders.addRawHeader(b'if-none-match', etag[0])
+
+        self.resource.render(self.request)
+
+        _, message = self.channel_layer.receive(['http.request'])
+
+        self.channel_layer.send(message['reply_channel'], {
+            'status': 200,
+            'headers': [[b'x-sendfile', temp_file.encode('utf-8')]],
+            'content': b'',
+        })
+        yield self.request_finished_defer
+
+        self.assertEqual(self.request.responseCode, 304)
+        self.assertEqual(self.request.written[0], b'')
+
+        # file gone request
+        self._prepare_request()
+        os.remove(temp_file)
+
+        self.resource.render(self.request)
+
+        _, message = self.channel_layer.receive(['http.request'])
+
+        self.channel_layer.send(message['reply_channel'], {
+            'status': 200,
+            'headers': [[b'x-sendfile', temp_file.encode('utf-8')]],
+            'content': b'',
+        })
+        yield self.request_finished_defer
+
+        self.assertEqual(self.request.responseCode, 404)

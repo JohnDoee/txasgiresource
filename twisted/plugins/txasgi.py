@@ -19,6 +19,7 @@ class Options(usage.Options):
         ["proxy_headers", "p", False, "Parse proxy header and use them to replace client ip"],
     ]
 
+
 class ASGIService(Service):
     def __init__(self, resource, description):
         self.resource = resource
@@ -31,6 +32,7 @@ class ASGIService(Service):
 
     def stopService(self):
         self.resource.stop()
+
 
 class WorkerService(Service):
     def __init__(self, channel_layer, worker_count):
@@ -58,6 +60,7 @@ class WorkerService(Service):
 
         for worker, thread in self._workers:
             yield thread
+
 
 @implementer(IServiceMaker, IPlugin)
 class ServiceMaker(object):

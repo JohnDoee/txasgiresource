@@ -1,10 +1,11 @@
 from __future__ import unicode_literals
 
+import hashlib
 import logging
 import os
 
 from twisted.internet import defer
-from twisted.web import resource, server
+from twisted.web import http, resource, server, static
 
 from .utils import send_error_page, sleep
 
@@ -18,10 +19,11 @@ CHUNK_RETRY_COUNT = 3
 class ASGIHTTPResource(resource.Resource):
     isLeaf = True
 
-    def __init__(self, manager, channel_base_payload, timeout=None):
+    def __init__(self, manager, channel_base_payload, timeout=None, use_x_sendfile=False):
         self.manager = manager
         self.channel_base_payload = channel_base_payload
         self.timeout = timeout
+        self.use_x_sendfile = True
 
         resource.Resource.__init__(self)
 
@@ -34,12 +36,10 @@ class ASGIHTTPResource(resource.Resource):
 
         # setup channel
         channel = self.manager.get_channel(self.timeout)
-        # make_send_channel()
         channel_payload['reply_channel'] = channel.reply_channel
 
         if content_size > 0:
             request_body_chunk_channel = self.manager.new_channel('http.request.body?')
-            #request_body_chunk_channel = self.manager.new_channel()
 
             channel_payload['body'] = content.read(MAXIMUM_CONTENT_SIZE)
             if content.tell() < content_size:
@@ -138,19 +138,30 @@ class ASGIHTTPResource(resource.Resource):
                 defer.returnValue(None)
 
             if not sent_header:
-                request.setResponseCode(reply['status'])
+                x_sendfile_path = None
                 for name, value in reply['headers']:
-                    request.responseHeaders.addRawHeader(name, value)
+                    if self.use_x_sendfile and name.lower() == b'x-sendfile':
+                        x_sendfile_path = value
+                    else:
+                        request.responseHeaders.addRawHeader(name, value)
+
+                if x_sendfile_path:
+                    logger.debug('We got a request for sendfile at %s' % (x_sendfile_path, ))
+                    yield self.do_sendfile(request, x_sendfile_path)
+                else:
+                    request.setResponseCode(reply['status'])
 
                 sent_header = True
 
-            request.write(reply.get('content', ''))
+            if not request.finished:
+                request.write(reply.get('content', ''))
 
-            if not reply.get('more_content', False):
+            if not reply.get('more_content', False) or request.finished:
                 break
 
         channel.finished()
-        request.finish()
+        if not request.finished:
+            request.finish()
 
     def render(self, request):
         channel_payload = self.channel_base_payload
@@ -162,3 +173,15 @@ class ASGIHTTPResource(resource.Resource):
         self.send_channel_layer_request(request, channel_payload, request.content)
 
         return server.NOT_DONE_YET
+
+    @defer.inlineCallbacks
+    def do_sendfile(self, request, path):
+        if not os.path.isfile(path):
+            request.setResponseCode(404)
+            defer.returnValue(None)
+
+        etag = hashlib.sha1(path).hexdigest()[:16].encode('ascii')
+        if request.setETag(etag) != http.CACHED:
+            finished_defer = request.notifyFinish()
+            static.File(path).render(request)
+            yield finished_defer
