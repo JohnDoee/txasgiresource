@@ -115,6 +115,10 @@ class Scheduler(object):
                 if bad_args:
                     continue
 
+                if self.scheduler.get_job(job_id):
+                    logger.warning('Job %s already exist, skipping' % (job_id, ))
+                    continue
+
                 logger.debug('Scheduling new job with id:%s '
                              'reply_channel:%s args:%r schedule_args:%r'
                              % (job_id, reply_channel, reply_args, job_action))
