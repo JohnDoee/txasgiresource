@@ -25,7 +25,8 @@ class ASGIResource(resource.Resource):
                  ws_protocols=None,
                  start_scheduler=True,
                  use_proxy_headers=False,
-                 use_proxy_proto_header=False):
+                 use_proxy_proto_header=False,
+                 use_x_sendfile=False):
         self.manager = ChannelLayerManager(channel_layer, start_scheduler=True)
         self.root_path = root_path
 
@@ -36,6 +37,7 @@ class ASGIResource(resource.Resource):
         self.ws_protocols = ws_protocols
         self.use_proxy_headers = use_proxy_headers
         self.use_proxy_proto_header = use_proxy_proto_header
+        self.use_x_sendfile = use_x_sendfile
 
         resource.Resource.__init__(self)
 
@@ -56,7 +58,8 @@ class ASGIResource(resource.Resource):
     def dispatch_http(self, request, channel_base_payload):
         return ASGIHTTPResource(manager=self.manager,
                                 channel_base_payload=channel_base_payload,
-                                timeout=self.http_timeout).render(request)
+                                timeout=self.http_timeout,
+                                use_x_sendfile=self.use_x_sendfile).render(request)
 
     def render(self, request):
         path = [b''] + request.postpath
