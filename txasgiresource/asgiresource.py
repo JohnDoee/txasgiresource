@@ -105,7 +105,7 @@ class ASGIResource(resource.Resource):
                 client_info = [proxy_forwarded_host.decode('utf-8'), port]
 
         if self.use_proxy_proto_header:
-            headers.append([b'x-forwarded-proto', 'http%s' % (request.isSecure() and 's' or '')])
+            headers.append([b'x-forwarded-proto', b'http%s' % (request.isSecure() and b's' or b'')])
 
         # build base payload used by both websocket and normal as handshake
         channel_base_payload = {
