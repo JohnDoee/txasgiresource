@@ -1,12 +1,10 @@
-from __future__ import unicode_literals
-
 import logging
 
 from autobahn.twisted.resource import WebSocketResource
 from twisted.web import resource, server
 
+from .application import ApplicationManager
 from .http import ASGIHTTPResource
-from .manager import ChannelLayerManager
 from .ws import ASGIWebSocketServerFactory
 
 logger = logging.getLogger(__name__)
@@ -16,22 +14,21 @@ class ASGIResource(resource.Resource):
     isLeaf = True
 
     def __init__(self,
-                 channel_layer,
+                 application,
                  root_path='',
                  http_timeout=120,
-                 websocket_timeout=None,
+                 websocket_timeout=86400,
                  ping_interval=20,
                  ping_timeout=30,
                  ws_protocols=None,
-                 start_scheduler=True,
                  use_proxy_headers=False,
                  use_proxy_proto_header=False,
                  use_x_sendfile=False):
-        self.manager = ChannelLayerManager(channel_layer, start_scheduler=True)
+        self.application = ApplicationManager(application)
         self.root_path = root_path
 
         self.http_timeout = http_timeout
-        self.websocket_timeout = websocket_timeout or getattr(channel_layer, "group_expiry", 86400)
+        self.websocket_timeout = websocket_timeout
         self.ping_interval = ping_interval
         self.ping_timeout = ping_timeout
         self.ws_protocols = ws_protocols
@@ -42,11 +39,11 @@ class ASGIResource(resource.Resource):
         resource.Resource.__init__(self)
 
     def stop(self):
-        self.manager.stop()
+        return self.application.stop()
 
-    def dispatch_websocket(self, request, channel_base_payload):
-        wsfactory = ASGIWebSocketServerFactory(manager=self.manager,
-                                               channel_base_payload=channel_base_payload,
+    def dispatch_websocket(self, request, base_scope):
+        wsfactory = ASGIWebSocketServerFactory(application=self.application,
+                                               base_scope=base_scope,
                                                idle_timeout=self.websocket_timeout,
                                                protocols=self.ws_protocols)
 
@@ -55,9 +52,9 @@ class ASGIResource(resource.Resource):
         wsfactory.startFactory()
         return WebSocketResource(wsfactory).render(request)
 
-    def dispatch_http(self, request, channel_base_payload):
-        return ASGIHTTPResource(manager=self.manager,
-                                channel_base_payload=channel_base_payload,
+    def dispatch_http(self, request, base_scope):
+        return ASGIHTTPResource(application=self.application,
+                                base_scope=base_scope,
                                 timeout=self.http_timeout,
                                 use_x_sendfile=self.use_x_sendfile).render(request)
 
@@ -108,7 +105,7 @@ class ASGIResource(resource.Resource):
             headers.append([b'x-forwarded-proto', b'http%s' % (request.isSecure() and b's' or b'')])
 
         # build base payload used by both websocket and normal as handshake
-        channel_base_payload = {
+        base_scope = {
             'path': path,
             'query_string': query_string,
             'root_path': self.root_path,
@@ -119,8 +116,8 @@ class ASGIResource(resource.Resource):
         }
 
         if is_websocket:
-            return self.dispatch_websocket(request, channel_base_payload)
+            return self.dispatch_websocket(request, base_scope)
         else:
-            return self.dispatch_http(request, channel_base_payload)
+            return self.dispatch_http(request, base_scope)
 
         return server.NOT_DONE_YET

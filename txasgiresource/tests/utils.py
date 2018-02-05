@@ -1,7 +1,26 @@
+import asyncio
 from io import BytesIO
 
 from twisted.web.http import CACHED, NOT_MODIFIED, PRECONDITION_FAILED
 from twisted.web.test.requesthelper import DummyRequest as TwistedDummyRequest
+
+
+class DummyApplication:
+    finished = False
+    fail_to_create = False
+
+    def create_application_instance(self, protocol, scope):
+        if self.fail_to_create:
+            raise Exception()
+
+        self.scope = scope
+        self.protocol = protocol
+        self.queue = asyncio.Queue()
+
+        return self.queue
+
+    def finish_protocol(self, protocol):
+        self.finished = True
 
 
 class DummyRequest(TwistedDummyRequest):

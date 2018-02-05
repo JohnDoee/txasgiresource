@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import hashlib
 import logging
 import os
@@ -7,127 +5,62 @@ import os
 from twisted.internet import defer
 from twisted.web import http, resource, server, static
 
-from .utils import send_error_page, sleep
+from .utils import TimeoutException, send_error_page, timeout_defer
 
 logger = logging.getLogger(__name__)
 
 MAXIMUM_CONTENT_SIZE = 950 * 1024
-CHUNK_SLEEP_DELAY = 0.05
-CHUNK_RETRY_COUNT = 3
 
 
 class ASGIHTTPResource(resource.Resource):
     isLeaf = True
+    request = None
 
-    def __init__(self, manager, channel_base_payload, timeout=None, use_x_sendfile=False):
-        self.manager = manager
-        self.channel_base_payload = channel_base_payload
+    def __init__(self, application, base_scope, timeout=None, use_x_sendfile=False):
+        self.application = application
+        self.base_scope = base_scope
         self.timeout = timeout
-        self.use_x_sendfile = True
+        self.use_x_sendfile = use_x_sendfile
+        self.reply_defer = defer.Deferred()
 
         resource.Resource.__init__(self)
 
-    @defer.inlineCallbacks
-    def send_channel_layer_request(self, request, channel_payload, content):
+    def send_request_to_application(self, request, content):
         # get size to figure out if we need to chunk request
         content.seek(0, os.SEEK_END)
         content_size = content.tell()
         content.seek(0, 0)
 
-        # setup channel
-        channel = self.manager.get_channel(self.timeout)
-        channel_payload['reply_channel'] = channel.reply_channel
+        logger.debug('Sending initial HTTP request')
+        while True:
+            body = content.read(MAXIMUM_CONTENT_SIZE)
+            more_body = content.tell() < content_size
 
-        if content_size > 0:
-            request_body_chunk_channel = self.manager.new_channel('http.request.body?')
+            self.queue.put_nowait({
+                'type': 'http.request',
+                'body': body,
+                'more_body': more_body,
+            })
 
-            channel_payload['body'] = content.read(MAXIMUM_CONTENT_SIZE)
-            if content.tell() < content_size:
-                channel_payload['body_channel'] = request_body_chunk_channel
-                logger.info('We have more body')
+            if not more_body:
+                break
 
-        # do the first send
-        try:
-            logger.debug('Sending initial http.request: %r' % (channel_payload, ))
-            channel.send('http.request', channel_payload)
-        except self.manager.ChannelFull:
-            logger.warning('We hit a full channel')
-
-            send_error_page(request, 503, 'Channel is full', 'Channel is full, please try again later')
-            defer.returnValue(None)
-
-        # send more chunks, if there's any data
-        if content.tell() < content_size:
-            logger.debug('The body is not completely sent')
-            # setup for connection lost situation
-            chunk_status = {
-                'finished_with_chunks': False,
-                'connection_lost': False,
-                'informed_connection_lost': False
-            }
-
-            def connection_lost(failure):
-                failure.trap(Exception)
-                if chunk_status['finished_with_chunks']:
-                    return
-
-                logger.warning('We lost connection while sending chunks')
-                chunk_status['connection_lost'] = True
-            request.notifyFinish().addErrback(connection_lost)
-
-            while content.tell() < content_size:
-                for i in range(1, CHUNK_RETRY_COUNT + 1):  # retry counter, used to extend sleep times
-                    if chunk_status['connection_lost']:
-                        chunk_channel_payload = {
-                            'closed': True,
-                        }
-                        chunk_status['informed_connection_lost'] = True
-                    else:
-                        chunk_channel_payload = {
-                            'content': content.read(MAXIMUM_CONTENT_SIZE),
-                        }
-                        chunk_channel_payload['more_content'] = content.tell() < content_size
-
-                    try:
-                        channel.send(request_body_chunk_channel, chunk_channel_payload)
-                        break
-                    except self.manager.ChannelFull:
-                        logger.debug('We hit a full channel while chunking')
-                        yield sleep(CHUNK_SLEEP_DELAY * i)[0]
-                else:  # chunk was not sent successfully
-                    if not chunk_status['connection_lost']:
-                        logger.warning('Unable to send the chunk because channel was full, aborting request')
-                        send_error_page(request, 503, 'Channel is full',
-                                        'Channel is full while sending chunks, please try again later')
-
-                        defer.returnValue(None)
-
-                if chunk_status['connection_lost'] and chunk_status['informed_connection_lost']:
-                    defer.returnValue(None)
-
-            chunk_status['finished_with_chunks'] = True
-
-        self.get_channel_layer_reply(channel, request, channel_payload['path'])
+        self.wait_for_application_reply(request)
 
     @defer.inlineCallbacks
-    def get_channel_layer_reply(self, channel, request, path):
-        logger.debug('Waiting for reply on %s' % (channel.reply_channel, ))
-
+    def wait_for_application_reply(self, request):
         def connection_lost(failure):
             failure.trap(Exception)
-
-            channel.send('http.disconnect', {
-                'reply_channel': channel.reply_channel,
-                'path': path,
-            })
-            channel.finished()
+            self.queue.put_nowait({'type': 'http.disconnect'})
+            self.do_cleanup()
         request.notifyFinish().addErrback(connection_lost)
 
+        did_x_sendfile = False
         sent_header = False
         while True:
             try:
-                reply = yield channel.get_reply()
-            except self.manager.Timeout:
+                reply = yield timeout_defer(self.timeout, self.reply_defer)
+            except TimeoutException:
                 logger.debug('We hit a timeout')
                 send_error_page(request, 504, 'Timeout while waiting for upstream',
                                 'Timeout while waiting for upstream')
@@ -137,7 +70,10 @@ class ASGIHTTPResource(resource.Resource):
                                 'Request was cancelled by server before it finished processing')
                 defer.returnValue(None)
 
-            if not sent_header:
+            if reply['type'] == 'http.response.start':
+                if sent_header:
+                    raise ValueError('Headers already sent')
+
                 x_sendfile_path = None
                 for name, value in reply['headers']:
                     if self.use_x_sendfile and name.lower() == b'x-sendfile':
@@ -147,30 +83,46 @@ class ASGIHTTPResource(resource.Resource):
 
                 if x_sendfile_path:
                     logger.debug('We got a request for sendfile at %s' % (x_sendfile_path, ))
+                    did_x_sendfile = True
                     yield self.do_sendfile(request, x_sendfile_path)
                 else:
                     request.setResponseCode(reply['status'])
 
                 sent_header = True
+                continue
 
-            if not request.finished:
-                request.write(reply.get('content', ''))
+            elif reply['type'] == 'http.response.body':
+                if not sent_header:
+                    pass
 
-            if not reply.get('more_content', False) or request.finished:
-                break
+                if not request.finished:
+                    request.write(not did_x_sendfile and reply.get('body', b'') or b'')
 
-        channel.finished()
+                if not reply.get('more_body', False) or request.finished:
+                    break
+
         if not request.finished:
             request.finish()
 
+        self.do_cleanup()
+
+    def handle_reply(self, msg):
+        d = self.reply_defer
+        self.reply_defer = defer.Deferred()
+        d.callback(msg)
+
     def render(self, request):
-        channel_payload = self.channel_base_payload
+        self.request = request
 
-        channel_payload['http_version'] = request.clientproto.decode('utf8').split('/')[1]
-        channel_payload['scheme'] = 'http%s' % (channel_payload.pop('_ssl'))
-        channel_payload['method'] = request.method.decode('utf8')
+        scope = dict(self.base_scope)
+        scope['type'] = 'http'
+        scope['http_version'] = request.clientproto.decode('utf8').split('/')[1]
+        scope['scheme'] = 'http%s' % (scope.pop('_ssl'))
+        scope['method'] = request.method.decode('utf8')
 
-        self.send_channel_layer_request(request, channel_payload, request.content)
+        self.queue = self.application.create_application_instance(self, scope)
+
+        self.send_request_to_application(request, request.content)
 
         return server.NOT_DONE_YET
 
@@ -185,3 +137,14 @@ class ASGIHTTPResource(resource.Resource):
             finished_defer = request.notifyFinish()
             static.File(path).render(request)
             yield finished_defer
+
+    def do_cleanup(self):
+        logger.debug('Cleaning up after finished request')
+
+        if self.request and not self.request.finished:
+            self.request.finish()
+
+            if self.reply_defer and not self.reply_defer.called:
+                self.reply_defer.cancel()
+
+        return self.application.finish_protocol(self)
