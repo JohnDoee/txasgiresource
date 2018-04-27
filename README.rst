@@ -26,7 +26,7 @@ As Twisted Resource
 
     # If we are done with the resource, make sure to stop it.
 
-    resource.stop()
+    yield resource.stop()
 
 As ASGI Protocol server
 ~~~~~~~~~~~~~~~~~~~~~~~

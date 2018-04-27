@@ -27,6 +27,7 @@ class DummyRequest(TwistedDummyRequest):
     _isSecure = False
     startedWriting = 0
     etag = None
+    channel = True
 
     def __init__(self, *args, **kwargs):
         self.content = BytesIO()
