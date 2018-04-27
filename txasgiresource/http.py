@@ -2,10 +2,10 @@ import hashlib
 import logging
 import os
 
-from twisted.internet import defer
+from twisted.internet import defer, reactor
 from twisted.web import http, resource, server, static
 
-from .utils import TimeoutException, send_error_page, timeout_defer
+from .utils import send_error_page
 
 logger = logging.getLogger(__name__)
 
@@ -51,16 +51,18 @@ class ASGIHTTPResource(resource.Resource):
     def wait_for_application_reply(self, request):
         def connection_lost(failure):
             failure.trap(Exception)
+            request.finished = 1
             self.queue.put_nowait({'type': 'http.disconnect'})
-            self.do_cleanup()
+            self.do_cleanup(is_finished=True)
         request.notifyFinish().addErrback(connection_lost)
 
         did_x_sendfile = False
         sent_header = False
         while True:
             try:
-                reply = yield timeout_defer(self.timeout, self.reply_defer)
-            except TimeoutException:
+                self.reply_defer.addTimeout(self.timeout, reactor)
+                reply = yield self.reply_defer
+            except defer.TimeoutError:
                 logger.debug('We hit a timeout')
                 send_error_page(request, 504, 'Timeout while waiting for upstream',
                                 'Timeout while waiting for upstream')
@@ -95,10 +97,10 @@ class ASGIHTTPResource(resource.Resource):
                 if not sent_header:
                     pass
 
-                if not request.finished:
+                if not request.finished and request.channel is not None:
                     request.write(not did_x_sendfile and reply.get('body', b'') or b'')
 
-                if not reply.get('more_body', False) or request.finished:
+                if not reply.get('more_body', False) or request.finished or not request.channel:
                     break
 
         if not request.finished:
@@ -138,13 +140,13 @@ class ASGIHTTPResource(resource.Resource):
             static.File(path).render(request)
             yield finished_defer
 
-    def do_cleanup(self):
+    def do_cleanup(self, is_finished=False):
         logger.debug('Cleaning up after finished request')
 
-        if self.request and not self.request.finished:
+        if not is_finished and self.request and not self.request.finished:
             self.request.finish()
 
-            if self.reply_defer and not self.reply_defer.called:
-                self.reply_defer.cancel()
+        if self.reply_defer and not self.reply_defer.called and self.reply_defer.callbacks:
+            self.reply_defer.cancel()
 
         return self.application.finish_protocol(self)

@@ -1,10 +1,9 @@
 import logging
 
 from autobahn.twisted.websocket import ConnectionDeny, WebSocketServerFactory, WebSocketServerProtocol
+
 from twisted.internet import defer
 from twisted.protocols import policies
-
-from .utils import TimeoutException
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
         while True:
             try:
                 reply = yield self.reply_defer
-            except TimeoutException:
+            except defer.TimeoutError:
                 logger.debug('We hit a timeout')
                 self.dropConnection(abort=True)
                 break
@@ -96,7 +95,7 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
 
     def timeoutConnection(self):
         logger.debug('Timeout from mixin')
-        self.reply_defer.errback(TimeoutException())
+        self.reply_defer.errback(defer.TimeoutError())
 
     def handle_reply(self, msg):
         d = self.reply_defer
