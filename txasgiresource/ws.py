@@ -14,19 +14,15 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
     accept_promise = None
     queue = None
 
-    def onConnect(self, request):
-        self.request = request
-        self.setTimeout(self.factory.idle_timeout)
-        self.accept_promise = defer.Deferred()
-        self.reply_defer = defer.Deferred()
-
+    @defer.inlineCallbacks
+    def _onConnect(self, request):
         scope = dict(self.factory.base_scope)
         scope['type'] = 'websocket'
         scope['scheme'] = 'ws%s' % (scope.pop('_ssl'))
-        # # TODO: add subprotocols
+        # TODO: add subprotocols
 
         try:
-            self.queue = self.factory.application.create_application_instance(self, scope)
+            self.queue = yield self.factory.application.create_application_instance(self, scope)
             self.opened = True
         except Exception as e:
             logger.exception('Failed to create application')
@@ -35,6 +31,14 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
             self.queue.put_nowait({'type': 'websocket.connect'})
 
         self.send_replies()
+
+    def onConnect(self, request):
+        self.request = request
+        self.setTimeout(self.factory.idle_timeout)
+        self.accept_promise = defer.Deferred()
+        self.reply_defer = defer.Deferred()
+
+        self._onConnect(request)
 
         return self.accept_promise
 
