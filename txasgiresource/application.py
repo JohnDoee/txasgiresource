@@ -1,7 +1,7 @@
 import asyncio
 from concurrent.futures import CancelledError
 
-from twisted.internet import defer
+from twisted.internet import defer, threads
 
 
 class ApplicationManager:
@@ -22,11 +22,12 @@ class ApplicationManager:
             except CancelledError:
                 pass
 
+    @defer.inlineCallbacks
     def create_application_instance(self, protocol, scope):
         async def handle_reply(msg):
             protocol.handle_reply(msg)
 
-        application_instance = self.application(scope)
+        application_instance = yield threads.deferToThread(self.application, scope)
         queue = asyncio.Queue()
 
         self.application_instances[protocol] = asyncio.ensure_future(

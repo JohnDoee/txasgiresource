@@ -113,7 +113,8 @@ class ASGIHTTPResource(resource.Resource):
         self.reply_defer = defer.Deferred()
         d.callback(msg)
 
-    def render(self, request):
+    @defer.inlineCallbacks
+    def _render(self, request):
         self.request = request
 
         scope = dict(self.base_scope)
@@ -122,9 +123,12 @@ class ASGIHTTPResource(resource.Resource):
         scope['scheme'] = 'http%s' % (scope.pop('_ssl'))
         scope['method'] = request.method.decode('utf8')
 
-        self.queue = self.application.create_application_instance(self, scope)
+        self.queue = yield self.application.create_application_instance(self, scope)
 
         self.send_request_to_application(request, request.content)
+
+    def render(self, request):
+        self._render(request)
 
         return server.NOT_DONE_YET
 
