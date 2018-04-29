@@ -1,6 +1,12 @@
 Changelog
 =========
 
+Version 2.1.0 (29-04-2018)
+-----------------------------------------------------------
+
+*   Updating to support Channels 2.1.0 and the upcoming
+    ASGI spec changes (run application initialization in a thread)
+
 Version 2.0.1 (27-04-2018)
 -----------------------------------------------------------
 
