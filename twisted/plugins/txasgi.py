@@ -1,9 +1,12 @@
-# import daphne.server
 import asyncio
+import sys
+
 from twisted.internet import asyncioreactor  # isort:skip
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
-asyncioreactor.install(loop)
+
+if "twisted.internet.reactor" not in sys.modules:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    asyncioreactor.install(loop)
 
 import asyncio
 
