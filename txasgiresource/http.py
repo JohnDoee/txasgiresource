@@ -87,7 +87,7 @@ class ASGIHTTPResource(resource.Resource):
                     else:
                         request.responseHeaders.addRawHeader(name, value)
 
-                if x_sendfile_path:
+                if x_sendfile_path and request.method != b'HEAD':
                     logger.debug('We got a request for sendfile at %s' % (x_sendfile_path, ))
                     did_x_sendfile = True
                     yield self.do_sendfile(request, x_sendfile_path)
