@@ -30,6 +30,7 @@ class ASGIHTTPResource(resource.Resource):
         if content.closed:
             logger.info('Seems like we tried to work on a closed connection')
             self.do_cleanup(is_finished=True)
+            return
         content.seek(0, os.SEEK_END)
         content_size = content.tell()
         content.seek(0, 0)
