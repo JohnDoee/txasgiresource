@@ -27,6 +27,9 @@ class ASGIHTTPResource(resource.Resource):
 
     def send_request_to_application(self, request, content):
         # get size to figure out if we need to chunk request
+        if content.closed:
+            logger.info('Seems like we tried to work on a closed connection')
+            self.do_cleanup(is_finished=True)
         content.seek(0, os.SEEK_END)
         content_size = content.tell()
         content.seek(0, 0)
@@ -147,7 +150,7 @@ class ASGIHTTPResource(resource.Resource):
     def do_cleanup(self, is_finished=False):
         logger.debug('Cleaning up after finished request')
 
-        if not is_finished and self.request and not self.request.finished:
+        if not is_finished and self.request and not self.request.finished and self.request.channel:
             self.request.finish()
 
         if self.reply_defer and not self.reply_defer.called and self.reply_defer.callbacks:
