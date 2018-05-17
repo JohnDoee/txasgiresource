@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 
 from autobahn.twisted.resource import WebSocketResource
@@ -23,6 +24,7 @@ class ASGIResource(resource.Resource):
                  ws_protocols=None,
                  use_proxy_headers=False,
                  use_proxy_proto_header=False,
+                 automatic_proxy_header_handling=False, # ignores use_proxy_headers and use_proxy_proto_header
                  use_x_sendfile=False):
         self.application = ApplicationManager(application)
         self.root_path = root_path
@@ -34,6 +36,7 @@ class ASGIResource(resource.Resource):
         self.ws_protocols = ws_protocols
         self.use_proxy_headers = use_proxy_headers
         self.use_proxy_proto_header = use_proxy_proto_header
+        self.automatic_proxy_header_handling = automatic_proxy_header_handling
         self.use_x_sendfile = use_x_sendfile
 
         resource.Resource.__init__(self)
@@ -87,7 +90,19 @@ class ASGIResource(resource.Resource):
             client_info = None
             server_info = None
 
-        if self.use_proxy_headers:
+        use_proxy_headers = self.use_proxy_headers
+        use_proxy_proto_header = self.use_proxy_proto_header
+
+        if self.automatic_proxy_header_handling and client_info:
+            ipaddr = ipaddress.ip_address(request.client.host)
+            if ipaddr.is_private:
+                use_proxy_headers = True
+                use_proxy_proto_header = False
+            else:
+                use_proxy_headers = False
+                use_proxy_proto_header = True
+
+        if use_proxy_headers:
             proxy_forwarded_host = request.requestHeaders.getRawHeaders(b"x-forwarded-for", [b""])[0].split(b",")[0].strip()
             proxy_forwarded_port = request.requestHeaders.getRawHeaders(b"x-forwarded-port", [b""])[0].split(b",")[0].strip()
 
@@ -101,7 +116,7 @@ class ASGIResource(resource.Resource):
 
                 client_info = [proxy_forwarded_host.decode('utf-8'), port]
 
-        if self.use_proxy_proto_header:
+        if use_proxy_proto_header:
             headers.append([b'x-forwarded-proto', b'http%s' % (request.isSecure() and b's' or b'')])
 
         # build base payload used by both websocket and normal as handshake
