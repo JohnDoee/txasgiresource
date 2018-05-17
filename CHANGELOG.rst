@@ -1,6 +1,12 @@
 Changelog
 =========
 
+Version 2.1.5 (17-05-2018)
+-----------------------------------------------------------
+
+*   Added support for automatic reverse proxy mode for
+    private networks
+
 Version 2.1.4 (02-05-2018)
 -----------------------------------------------------------
 
