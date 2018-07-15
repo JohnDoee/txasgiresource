@@ -49,16 +49,17 @@ class TestASGIWebSocket(TestCase):
     def test_normal(self):
         self.assertFalse(self.protocol.opened)
         accept_defer = self.protocol.onConnect(None)
-        self.assertEqual(self.application.scope, {'type': 'websocket', 'scheme': 'ws'})
+        self.assertEqual(self.application.scope, {'type': 'websocket', 'scheme': 'ws', 'subprotocols': []})
         self.assertTrue(self.protocol.opened)
         self.assertFalse(accept_defer.called)
 
         reply = self.application.queue.get_nowait()
         self.assertEqual({'type': 'websocket.connect'}, reply)
         self.assertFalse(self.protocol.accepted)
-        self.protocol.handle_reply({'type': 'websocket.accept'})
-        yield accept_defer
+        self.protocol.handle_reply({'type': 'websocket.accept', 'subprotocol': 'txasgi.best'})
+        subprotocol = yield accept_defer
         self.assertTrue(self.protocol.accepted)
+        self.assertEqual(subprotocol, 'txasgi.best')
 
         self.protocol.handle_reply({'type': 'websocket.send', 'binary': b'some binary stuff'})
         self.assertEqual(self.protocol._events.pop(), ('send_message', b'some binary stuff', True))
