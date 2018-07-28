@@ -127,7 +127,7 @@ class ASGIHTTPResource(resource.Resource):
         scope['scheme'] = 'http%s' % (scope.pop('_ssl'))
         scope['method'] = request.method.decode('utf8')
 
-        self.queue = yield self.application.create_application_instance(self, scope)
+        self.queue = yield defer.maybeDeferred(self.application.create_application_instance, self, scope)
 
         self.send_request_to_application(request, request.content)
 
