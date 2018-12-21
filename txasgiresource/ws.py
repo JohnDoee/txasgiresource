@@ -23,13 +23,12 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
         subprotocols = []
         for name, value in scope.get('headers', []):
             if name == b'sec-websocket-protocol':
-                subprotocols = [x.strip() for x in value.decode('ascii').split(',')]
-                break
+                subprotocols += [x.strip() + ' ' for x in value.decode('ascii').split(',')]
 
         scope['subprotocols'] = subprotocols
 
         try:
-            self.queue = yield self.factory.application.create_application_instance(self, scope)
+            self.queue = yield defer.maybeDeferred(self.factory.application.create_application_instance, self, scope)
             self.opened = True
         except Exception as e:
             logger.exception('Failed to create application')
