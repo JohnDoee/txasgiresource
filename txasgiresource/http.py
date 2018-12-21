@@ -91,6 +91,7 @@ class ASGIHTTPResource(resource.Resource):
                     logger.debug('We got a request for sendfile at %s' % (x_sendfile_path, ))
                     did_x_sendfile = True
                     yield self.do_sendfile(request, x_sendfile_path)
+                    break
                 else:
                     request.setResponseCode(reply['status'])
 
@@ -102,7 +103,7 @@ class ASGIHTTPResource(resource.Resource):
                     pass
 
                 if not request.finished and request.channel is not None:
-                    request.write(not did_x_sendfile and reply.get('body', b'') or b'')
+                    request.write(reply.get('body', b'') or b'')
 
                 if not reply.get('more_body', False) or request.finished or not request.channel:
                     break
@@ -149,7 +150,7 @@ class ASGIHTTPResource(resource.Resource):
             yield finished_defer
 
     def do_cleanup(self, is_finished=False):
-        logger.debug('Cleaning up after finished request')
+        logger.debug('Cleaning up after finished request that are finished:%s path:%s?%s' % (is_finished, self.base_scope['path'], self.base_scope['query_string']))
 
         if not is_finished and self.request and not self.request.finished and self.request.channel:
             self.request.finish()
