@@ -1,6 +1,7 @@
 import ipaddress
 import logging
 
+from asgiref.compatibility import guarantee_single_callable
 from autobahn.twisted.resource import WebSocketResource
 from twisted.web import resource, server
 
@@ -26,7 +27,8 @@ class ASGIResource(resource.Resource):
                  use_proxy_proto_header=False,
                  automatic_proxy_header_handling=False, # ignores use_proxy_headers and use_proxy_proto_header
                  use_x_sendfile=False):
-        self.application = ApplicationManager(application)
+
+        self.application = ApplicationManager(guarantee_single_callable(application))
         self.root_path = root_path
 
         self.http_timeout = http_timeout
@@ -121,7 +123,9 @@ class ASGIResource(resource.Resource):
 
         # build base payload used by both websocket and normal as handshake
         base_scope = {
+            'asgi': {'version': '3.0', 'spec_version': '2.0'},
             'path': path,
+            'raw_path': request.uri,
             'query_string': query_string,
             'root_path': self.root_path,
             'headers': headers,

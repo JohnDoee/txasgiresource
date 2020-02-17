@@ -60,7 +60,6 @@ class ASGIHTTPResource(resource.Resource):
             self.do_cleanup(is_finished=True)
         request.notifyFinish().addErrback(connection_lost)
 
-        did_x_sendfile = False
         sent_header = False
         while True:
             try:
@@ -89,7 +88,6 @@ class ASGIHTTPResource(resource.Resource):
 
                 if x_sendfile_path and request.method != b'HEAD':
                     logger.debug('We got a request for sendfile at %s' % (x_sendfile_path, ))
-                    did_x_sendfile = True
                     yield self.do_sendfile(request, x_sendfile_path)
                     break
                 else:
@@ -150,7 +148,7 @@ class ASGIHTTPResource(resource.Resource):
             yield finished_defer
 
     def do_cleanup(self, is_finished=False):
-        logger.debug('Cleaning up after finished request that are finished:%s path:%s?%s' % (is_finished, self.base_scope['path'], self.base_scope['query_string']))
+        logger.debug('Cleaning up after finished request that are finished:%s path:%s?%s' % (is_finished, self.base_scope['path'], self.base_scope.get('query_string', b'')))
 
         if not is_finished and self.request and not self.request.finished and self.request.channel:
             self.request.finish()

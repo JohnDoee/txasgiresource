@@ -59,7 +59,7 @@ class ServiceMaker(object):
 
         ms = MultiService()
 
-        resource = ASGIResource(application)
+        resource = ASGIResource(application, use_proxy_headers=options['proxy_headers'])
         ms.addService(ASGIService(resource, options['description']))
 
         return ms

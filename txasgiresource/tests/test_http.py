@@ -15,7 +15,7 @@ from .utils import DummyApplication, DummyRequest
 class TestASGIHTTP(TestCase):
     def setUp(self):
         self.application = DummyApplication()
-        self.base_scope = {'_ssl': ''}
+        self.base_scope = {'_ssl': '', 'path': '/'}
         self._prepare_request()
         self.temp_path = tempfile.mkdtemp()
 
@@ -31,7 +31,7 @@ class TestASGIHTTP(TestCase):
     @defer.inlineCallbacks
     def test_normal_http_request(self):
         self.resource.render(self.request)
-        self.assertEqual(self.application.scope, {'type': 'http', 'scheme': 'http', 'http_version': '1.0', 'method': 'GET'})
+        self.assertEqual(self.application.scope, {'type': 'http', 'scheme': 'http', 'http_version': '1.0', 'method': 'GET', 'path': '/'})
         self.assertEqual(self.application.queue.get_nowait(), {'type': 'http.request', 'body': b'', 'more_body': False})
         self.resource.handle_reply({
             'type': 'http.response.start',
@@ -149,7 +149,8 @@ class TestASGIHTTP(TestCase):
         yield self.request_finished_defer
 
         self.assertEqual(self.request.responseCode, 304)
-        self.assertEqual(self.request.written[0], b'')
+        if len(self.request.written) > 0 and self.request.written[0] != b'':
+            self.fail('Unexpected data written')
 
         # file gone request
         self._prepare_request()

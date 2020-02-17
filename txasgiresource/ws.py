@@ -30,7 +30,7 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
         try:
             self.queue = yield defer.maybeDeferred(self.factory.application.create_application_instance, self, scope)
             self.opened = True
-        except Exception as e:
+        except Exception:
             logger.exception('Failed to create application')
             self.reply_defer.callback({'type': 'websocket.close'})
         else:

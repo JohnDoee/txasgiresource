@@ -21,6 +21,7 @@ setup(
     install_requires=[
         'twisted>=16.0',
         'autobahn>=0.12',
+        'asgiref>=2.3.2'
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
