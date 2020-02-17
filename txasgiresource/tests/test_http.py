@@ -15,15 +15,17 @@ from .utils import DummyApplication, DummyRequest
 class TestASGIHTTP(TestCase):
     def setUp(self):
         self.application = DummyApplication()
-        self.base_scope = {'_ssl': '', 'path': '/'}
+        self.base_scope = {"_ssl": "", "path": "/"}
         self._prepare_request()
         self.temp_path = tempfile.mkdtemp()
 
     def _prepare_request(self):
-        self.request = DummyRequest([b'test', b'path'])
-        self.request.uri = b'http://dummy/test/path?a=b'
+        self.request = DummyRequest([b"test", b"path"])
+        self.request.uri = b"http://dummy/test/path?a=b"
         self.request_finished_defer = self.request.notifyFinish()
-        self.resource = ASGIHTTPResource(self.application, self.base_scope, 1, use_x_sendfile=True)
+        self.resource = ASGIHTTPResource(
+            self.application, self.base_scope, 1, use_x_sendfile=True
+        )
 
     def tearDown(self):
         shutil.rmtree(self.temp_path)
@@ -31,21 +33,39 @@ class TestASGIHTTP(TestCase):
     @defer.inlineCallbacks
     def test_normal_http_request(self):
         self.resource.render(self.request)
-        self.assertEqual(self.application.scope, {'type': 'http', 'scheme': 'http', 'http_version': '1.0', 'method': 'GET', 'path': '/'})
-        self.assertEqual(self.application.queue.get_nowait(), {'type': 'http.request', 'body': b'', 'more_body': False})
-        self.resource.handle_reply({
-            'type': 'http.response.start',
-            'status': 200,
-            'headers': [[b'server', b'my server software'],
-                        [b'x-isgood', b'yes'],
-                        [b'x-isgood', b'no']],
-        })
-        self.resource.handle_reply({'type': 'http.response.body', 'body': b'this is the result'})
+        self.assertEqual(
+            self.application.scope,
+            {
+                "type": "http",
+                "scheme": "http",
+                "http_version": "1.0",
+                "method": "GET",
+                "path": "/",
+            },
+        )
+        self.assertEqual(
+            self.application.queue.get_nowait(),
+            {"type": "http.request", "body": b"", "more_body": False},
+        )
+        self.resource.handle_reply(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    [b"server", b"my server software"],
+                    [b"x-isgood", b"yes"],
+                    [b"x-isgood", b"no"],
+                ],
+            }
+        )
+        self.resource.handle_reply(
+            {"type": "http.response.body", "body": b"this is the result"}
+        )
         yield self.request_finished_defer
 
         expected_headers = [
-            (b'X-Isgood', [b'yes', b'no']),
-            (b'Server', [b'my server software']),
+            (b"X-Isgood", [b"yes", b"no"]),
+            (b"Server", [b"my server software"]),
         ]
 
         for header in list(self.request.responseHeaders.getAllRawHeaders()):
@@ -53,7 +73,7 @@ class TestASGIHTTP(TestCase):
 
         self.assertEqual(expected_headers, [])
 
-        self.assertEqual(self.request.written[0], b'this is the result')
+        self.assertEqual(self.request.written[0], b"this is the result")
         self.assertEqual(self.request.responseCode, 200)
 
     @defer.inlineCallbacks
@@ -63,7 +83,7 @@ class TestASGIHTTP(TestCase):
 
         yield self.request_finished_defer
 
-        self.assertIn(b'Timeout', self.request.written[0])
+        self.assertIn(b"Timeout", self.request.written[0])
         self.assertEqual(self.request.responseCode, 504)
 
     @defer.inlineCallbacks
@@ -73,7 +93,7 @@ class TestASGIHTTP(TestCase):
 
         yield self.request_finished_defer
 
-        self.assertIn(b'cancelled', self.request.written[0])
+        self.assertIn(b"cancelled", self.request.written[0])
         self.assertEqual(self.request.responseCode, 503)
 
     @defer.inlineCallbacks
@@ -84,9 +104,32 @@ class TestASGIHTTP(TestCase):
 
         self.resource.render(self.request)
 
-        self.assertEqual(self.application.queue.get_nowait(), {'type': 'http.request', 'body': body[:asgihttp.MAXIMUM_CONTENT_SIZE], 'more_body': True})
-        self.assertEqual(self.application.queue.get_nowait(), {'type': 'http.request', 'body': body[asgihttp.MAXIMUM_CONTENT_SIZE:asgihttp.MAXIMUM_CONTENT_SIZE * 2], 'more_body': True})
-        self.assertEqual(self.application.queue.get_nowait(), {'type': 'http.request', 'body': body[asgihttp.MAXIMUM_CONTENT_SIZE * 2:], 'more_body': False})
+        self.assertEqual(
+            self.application.queue.get_nowait(),
+            {
+                "type": "http.request",
+                "body": body[: asgihttp.MAXIMUM_CONTENT_SIZE],
+                "more_body": True,
+            },
+        )
+        self.assertEqual(
+            self.application.queue.get_nowait(),
+            {
+                "type": "http.request",
+                "body": body[
+                    asgihttp.MAXIMUM_CONTENT_SIZE : asgihttp.MAXIMUM_CONTENT_SIZE * 2
+                ],
+                "more_body": True,
+            },
+        )
+        self.assertEqual(
+            self.application.queue.get_nowait(),
+            {
+                "type": "http.request",
+                "body": body[asgihttp.MAXIMUM_CONTENT_SIZE * 2 :],
+                "more_body": False,
+            },
+        )
 
         self.resource.reply_defer.cancel()
         try:
@@ -104,27 +147,34 @@ class TestASGIHTTP(TestCase):
         except:
             pass
         else:
-            self.fail('Should raise an exception')
+            self.fail("Should raise an exception")
 
-        self.assertEqual(self.application.queue.get_nowait(), {'type': 'http.request', 'body': b'', 'more_body': False})
-        self.assertEqual(self.application.queue.get_nowait(), {'type': 'http.disconnect'})
+        self.assertEqual(
+            self.application.queue.get_nowait(),
+            {"type": "http.request", "body": b"", "more_body": False},
+        )
+        self.assertEqual(
+            self.application.queue.get_nowait(), {"type": "http.disconnect"}
+        )
 
     @defer.inlineCallbacks
     def test_http_request_sendfile(self):
-        temp_file = os.path.join(self.temp_path, 'tempfile')
-        file_payload = b'a' * 50
-        with open(temp_file, 'wb') as f:
+        temp_file = os.path.join(self.temp_path, "tempfile")
+        file_payload = b"a" * 50
+        with open(temp_file, "wb") as f:
             f.write(file_payload)
 
         # normal request
         self.resource.render(self.request)
 
-        self.resource.handle_reply({
-            'type': 'http.response.start',
-            'status': 200,
-            'headers': [[b'x-sendfile', temp_file.encode('utf-8')]],
-        })
-        self.resource.handle_reply({'type': 'http.response.body', 'body': b''})
+        self.resource.handle_reply(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [[b"x-sendfile", temp_file.encode("utf-8")]],
+            }
+        )
+        self.resource.handle_reply({"type": "http.response.body", "body": b""})
 
         yield self.request_finished_defer
 
@@ -132,25 +182,27 @@ class TestASGIHTTP(TestCase):
         self.assertEqual(self.request.written[0], file_payload)
 
         # cached request
-        etag = self.request.responseHeaders.getRawHeaders('etag')
+        etag = self.request.responseHeaders.getRawHeaders("etag")
 
         self._prepare_request()
-        self.request.requestHeaders.addRawHeader(b'if-none-match', etag[0])
+        self.request.requestHeaders.addRawHeader(b"if-none-match", etag[0])
 
         self.resource.render(self.request)
 
-        self.resource.handle_reply({
-            'type': 'http.response.start',
-            'status': 200,
-            'headers': [[b'x-sendfile', temp_file.encode('utf-8')]],
-        })
-        self.resource.handle_reply({'type': 'http.response.body', 'body': b''})
+        self.resource.handle_reply(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [[b"x-sendfile", temp_file.encode("utf-8")]],
+            }
+        )
+        self.resource.handle_reply({"type": "http.response.body", "body": b""})
 
         yield self.request_finished_defer
 
         self.assertEqual(self.request.responseCode, 304)
-        if len(self.request.written) > 0 and self.request.written[0] != b'':
-            self.fail('Unexpected data written')
+        if len(self.request.written) > 0 and self.request.written[0] != b"":
+            self.fail("Unexpected data written")
 
         # file gone request
         self._prepare_request()
@@ -158,12 +210,14 @@ class TestASGIHTTP(TestCase):
 
         self.resource.render(self.request)
 
-        self.resource.handle_reply({
-            'type': 'http.response.start',
-            'status': 200,
-            'headers': [[b'x-sendfile', temp_file.encode('utf-8')]],
-        })
-        self.resource.handle_reply({'type': 'http.response.body', 'body': b''})
+        self.resource.handle_reply(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [[b"x-sendfile", temp_file.encode("utf-8")]],
+            }
+        )
+        self.resource.handle_reply({"type": "http.response.body", "body": b""})
         yield self.request_finished_defer
 
         self.assertEqual(self.request.responseCode, 404)

@@ -29,11 +29,7 @@ class ApplicationManager:
         queue = asyncio.Queue()
 
         self.application_instances[protocol] = asyncio.ensure_future(
-            self.application(
-                scope=scope,
-                receive=queue.get,
-                send=handle_reply
-            )
+            self.application(scope=scope, receive=queue.get, send=handle_reply)
         )
 
         return queue
@@ -43,13 +39,16 @@ class ApplicationManager:
         if protocol in self.application_instances:
             if not self.application_instances[protocol].done():
                 if self.application_instances[protocol].cancel():
+
                     def handle_cancel_exception(f):
                         try:
                             f.exception()
                         except CancelledError:
                             pass
 
-                    self.application_instances[protocol].add_done_callback(handle_cancel_exception)
+                    self.application_instances[protocol].add_done_callback(
+                        handle_cancel_exception
+                    )
                 wait_for = True
             del self.application_instances[protocol]
         return wait_for

@@ -40,10 +40,11 @@ class DummyRequest(TwistedDummyRequest):
         tags = self.getHeader(b"if-none-match")
         if tags:
             tags = tags.split()
-            if (etag in tags) or (b'*' in tags):
-                self.setResponseCode(((self.method in (b"HEAD", b"GET"))
-                                      and NOT_MODIFIED)
-                                     or PRECONDITION_FAILED)
+            if (etag in tags) or (b"*" in tags):
+                self.setResponseCode(
+                    ((self.method in (b"HEAD", b"GET")) and NOT_MODIFIED)
+                    or PRECONDITION_FAILED
+                )
                 return CACHED
         return None
 
@@ -52,7 +53,7 @@ class DummyRequest(TwistedDummyRequest):
             self.startedWriting = 1
 
             if self.etag is not None:
-                self.responseHeaders.setRawHeaders(b'ETag', [self.etag])
+                self.responseHeaders.setRawHeaders(b"ETag", [self.etag])
 
         return super(DummyRequest, self).write(data)
 

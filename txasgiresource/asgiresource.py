@@ -3,6 +3,7 @@ import logging
 
 from asgiref.compatibility import guarantee_single_callable
 from autobahn.twisted.resource import WebSocketResource
+
 from twisted.web import resource, server
 
 from .application import ApplicationManager
@@ -15,18 +16,20 @@ logger = logging.getLogger(__name__)
 class ASGIResource(resource.Resource):
     isLeaf = True
 
-    def __init__(self,
-                 application,
-                 root_path='',
-                 http_timeout=120,
-                 websocket_timeout=86400,
-                 ping_interval=20,
-                 ping_timeout=30,
-                 ws_protocols=None,
-                 use_proxy_headers=False,
-                 use_proxy_proto_header=False,
-                 automatic_proxy_header_handling=False, # ignores use_proxy_headers and use_proxy_proto_header
-                 use_x_sendfile=False):
+    def __init__(
+        self,
+        application,
+        root_path="",
+        http_timeout=120,
+        websocket_timeout=86400,
+        ping_interval=20,
+        ping_timeout=30,
+        ws_protocols=None,
+        use_proxy_headers=False,
+        use_proxy_proto_header=False,
+        automatic_proxy_header_handling=False,  # ignores use_proxy_headers and use_proxy_proto_header
+        use_x_sendfile=False,
+    ):
 
         self.application = ApplicationManager(guarantee_single_callable(application))
         self.root_path = root_path
@@ -47,30 +50,35 @@ class ASGIResource(resource.Resource):
         return self.application.stop()
 
     def dispatch_websocket(self, request, base_scope):
-        wsfactory = ASGIWebSocketServerFactory(application=self.application,
-                                               base_scope=base_scope,
-                                               idle_timeout=self.websocket_timeout,
-                                               protocols=self.ws_protocols)
+        wsfactory = ASGIWebSocketServerFactory(
+            application=self.application,
+            base_scope=base_scope,
+            idle_timeout=self.websocket_timeout,
+            protocols=self.ws_protocols,
+        )
 
-        wsfactory.setProtocolOptions(autoPingInterval=self.ping_interval,
-                                     autoPingTimeout=self.ping_timeout)
+        wsfactory.setProtocolOptions(
+            autoPingInterval=self.ping_interval, autoPingTimeout=self.ping_timeout
+        )
         wsfactory.startFactory()
         return WebSocketResource(wsfactory).render(request)
 
     def dispatch_http(self, request, base_scope):
-        return ASGIHTTPResource(application=self.application,
-                                base_scope=base_scope,
-                                timeout=self.http_timeout,
-                                use_x_sendfile=self.use_x_sendfile).render(request)
+        return ASGIHTTPResource(
+            application=self.application,
+            base_scope=base_scope,
+            timeout=self.http_timeout,
+            use_x_sendfile=self.use_x_sendfile,
+        ).render(request)
 
     def render(self, request):
-        path = [b''] + request.postpath
-        path = '/'.join(p.decode('utf-8') for p in path)
+        path = [b""] + request.postpath
+        path = "/".join(p.decode("utf-8") for p in path)
 
-        if b'?' in request.uri:
-            query_string = request.uri.split(b'?', 1)[1]
+        if b"?" in request.uri:
+            query_string = request.uri.split(b"?", 1)[1]
         else:
-            query_string = ''
+            query_string = ""
 
         is_websocket = False
         headers = []
@@ -82,10 +90,10 @@ class ASGIResource(resource.Resource):
             name = name.lower()
             for value in values:
                 headers.append([name, value])
-                if name == b'upgrade' and value.lower() == b'websocket':
+                if name == b"upgrade" and value.lower() == b"websocket":
                     is_websocket = True
 
-        if hasattr(request.client, 'host') and hasattr(request.client, 'port'):
+        if hasattr(request.client, "host") and hasattr(request.client, "port"):
             client_info = [request.client.host, request.client.port]
             server_info = [request.host.host, request.host.port]
         else:
@@ -105,8 +113,16 @@ class ASGIResource(resource.Resource):
                 use_proxy_proto_header = True
 
         if use_proxy_headers:
-            proxy_forwarded_host = request.requestHeaders.getRawHeaders(b"x-forwarded-for", [b""])[0].split(b",")[0].strip()
-            proxy_forwarded_port = request.requestHeaders.getRawHeaders(b"x-forwarded-port", [b""])[0].split(b",")[0].strip()
+            proxy_forwarded_host = (
+                request.requestHeaders.getRawHeaders(b"x-forwarded-for", [b""])[0]
+                .split(b",")[0]
+                .strip()
+            )
+            proxy_forwarded_port = (
+                request.requestHeaders.getRawHeaders(b"x-forwarded-port", [b""])[0]
+                .split(b",")[0]
+                .strip()
+            )
 
             if proxy_forwarded_host:
                 port = 0
@@ -116,22 +132,24 @@ class ASGIResource(resource.Resource):
                     except ValueError:
                         pass
 
-                client_info = [proxy_forwarded_host.decode('utf-8'), port]
+                client_info = [proxy_forwarded_host.decode("utf-8"), port]
 
         if use_proxy_proto_header:
-            headers.append([b'x-forwarded-proto', b'http%s' % (request.isSecure() and b's' or b'')])
+            headers.append(
+                [b"x-forwarded-proto", b"http%s" % (request.isSecure() and b"s" or b"")]
+            )
 
         # build base payload used by both websocket and normal as handshake
         base_scope = {
-            'asgi': {'version': '3.0', 'spec_version': '2.0'},
-            'path': path,
-            'raw_path': request.uri,
-            'query_string': query_string,
-            'root_path': self.root_path,
-            'headers': headers,
-            'client': client_info,
-            'server': server_info,
-            '_ssl': request.isSecure() and 's' or '',
+            "asgi": {"version": "3.0", "spec_version": "2.0"},
+            "path": path,
+            "raw_path": request.uri,
+            "query_string": query_string,
+            "root_path": self.root_path,
+            "headers": headers,
+            "client": client_info,
+            "server": server_info,
+            "_ssl": request.isSecure() and "s" or "",
         }
 
         if is_websocket:
