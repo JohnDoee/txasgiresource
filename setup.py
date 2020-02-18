@@ -16,6 +16,7 @@ setup(
     author_email='johndoee@tidalstream.org',
     description='ASGI implemented as a Twisted resource',
     long_description=long_description,
+    long_description_content_type="text/x-rst",
     license='MIT',
     packages=['txasgiresource', 'txasgiresource.tests', 'twisted.plugins'],
     install_requires=[
