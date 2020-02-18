@@ -28,23 +28,21 @@ class ASGIHTTPResource(resource.Resource):
     def send_request_to_application(self, request, content):
         # get size to figure out if we need to chunk request
         if content.closed:
-            logger.info('Seems like we tried to work on a closed connection')
+            logger.info("Seems like we tried to work on a closed connection")
             self.do_cleanup(is_finished=True)
             return
         content.seek(0, os.SEEK_END)
         content_size = content.tell()
         content.seek(0, 0)
 
-        logger.debug('Sending initial HTTP request')
+        logger.debug("Sending initial HTTP request")
         while True:
             body = content.read(MAXIMUM_CONTENT_SIZE)
             more_body = content.tell() < content_size
 
-            self.queue.put_nowait({
-                'type': 'http.request',
-                'body': body,
-                'more_body': more_body,
-            })
+            self.queue.put_nowait(
+                {"type": "http.request", "body": body, "more_body": more_body,}
+            )
 
             if not more_body:
                 break
@@ -56,56 +54,69 @@ class ASGIHTTPResource(resource.Resource):
         def connection_lost(failure):
             failure.trap(Exception)
             request.finished = 1
-            self.queue.put_nowait({'type': 'http.disconnect'})
+            self.queue.put_nowait({"type": "http.disconnect"})
             self.do_cleanup(is_finished=True)
+
         request.notifyFinish().addErrback(connection_lost)
 
-        did_x_sendfile = False
         sent_header = False
         while True:
             try:
                 self.reply_defer.addTimeout(self.timeout, reactor)
                 reply = yield self.reply_defer
             except defer.TimeoutError:
-                logger.debug('We hit a timeout')
-                send_error_page(request, 504, 'Timeout while waiting for upstream',
-                                'Timeout while waiting for upstream')
+                logger.debug("We hit a timeout")
+                send_error_page(
+                    request,
+                    504,
+                    "Timeout while waiting for upstream",
+                    "Timeout while waiting for upstream",
+                )
                 defer.returnValue(None)
             except defer.CancelledError:
-                send_error_page(request, 503, 'Request cancelled',
-                                'Request was cancelled by server before it finished processing')
+                send_error_page(
+                    request,
+                    503,
+                    "Request cancelled",
+                    "Request was cancelled by server before it finished processing",
+                )
                 defer.returnValue(None)
 
-            if reply['type'] == 'http.response.start':
+            if reply["type"] == "http.response.start":
                 if sent_header:
-                    raise ValueError('Headers already sent')
+                    raise ValueError("Headers already sent")
 
                 x_sendfile_path = None
-                for name, value in reply['headers']:
-                    if self.use_x_sendfile and name.lower() == b'x-sendfile':
+                for name, value in reply["headers"]:
+                    if self.use_x_sendfile and name.lower() == b"x-sendfile":
                         x_sendfile_path = value
                     else:
                         request.responseHeaders.addRawHeader(name, value)
 
-                if x_sendfile_path and request.method != b'HEAD':
-                    logger.debug('We got a request for sendfile at %s' % (x_sendfile_path, ))
-                    did_x_sendfile = True
+                if x_sendfile_path and request.method != b"HEAD":
+                    logger.debug(
+                        "We got a request for sendfile at %s" % (x_sendfile_path,)
+                    )
                     yield self.do_sendfile(request, x_sendfile_path)
                     break
                 else:
-                    request.setResponseCode(reply['status'])
+                    request.setResponseCode(reply["status"])
 
                 sent_header = True
                 continue
 
-            elif reply['type'] == 'http.response.body':
+            elif reply["type"] == "http.response.body":
                 if not sent_header:
                     pass
 
                 if not request.finished and request.channel is not None:
-                    request.write(reply.get('body', b'') or b'')
+                    request.write(reply.get("body", b"") or b"")
 
-                if not reply.get('more_body', False) or request.finished or not request.channel:
+                if (
+                    not reply.get("more_body", False)
+                    or request.finished
+                    or not request.channel
+                ):
                     break
 
         if not request.finished:
@@ -123,12 +134,14 @@ class ASGIHTTPResource(resource.Resource):
         self.request = request
 
         scope = dict(self.base_scope)
-        scope['type'] = 'http'
-        scope['http_version'] = request.clientproto.decode('utf8').split('/')[1]
-        scope['scheme'] = 'http%s' % (scope.pop('_ssl'))
-        scope['method'] = request.method.decode('utf8')
+        scope["type"] = "http"
+        scope["http_version"] = request.clientproto.decode("utf8").split("/")[1]
+        scope["scheme"] = "http%s" % (scope.pop("_ssl"))
+        scope["method"] = request.method.decode("utf8")
 
-        self.queue = yield defer.maybeDeferred(self.application.create_application_instance, self, scope)
+        self.queue = yield defer.maybeDeferred(
+            self.application.create_application_instance, self, scope
+        )
 
         self.send_request_to_application(request, request.content)
 
@@ -143,19 +156,35 @@ class ASGIHTTPResource(resource.Resource):
             request.setResponseCode(404)
             defer.returnValue(None)
 
-        etag = hashlib.sha1(path).hexdigest()[:16].encode('ascii')
+        etag = hashlib.sha1(path).hexdigest()[:16].encode("ascii")
         if request.setETag(etag) != http.CACHED:
             finished_defer = request.notifyFinish()
             static.File(path).render(request)
             yield finished_defer
 
     def do_cleanup(self, is_finished=False):
-        logger.debug('Cleaning up after finished request that are finished:%s path:%s?%s' % (is_finished, self.base_scope['path'], self.base_scope['query_string']))
+        logger.debug(
+            "Cleaning up after finished request that are finished:%s path:%s?%s"
+            % (
+                is_finished,
+                self.base_scope["path"],
+                self.base_scope.get("query_string", b""),
+            )
+        )
 
-        if not is_finished and self.request and not self.request.finished and self.request.channel:
+        if (
+            not is_finished
+            and self.request
+            and not self.request.finished
+            and self.request.channel
+        ):
             self.request.finish()
 
-        if self.reply_defer and not self.reply_defer.called and self.reply_defer.callbacks:
+        if (
+            self.reply_defer
+            and not self.reply_defer.called
+            and self.reply_defer.callbacks
+        ):
             self.reply_defer.cancel()
 
         return self.application.finish_protocol(self)

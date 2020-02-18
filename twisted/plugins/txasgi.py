@@ -1,5 +1,5 @@
-import asyncio
-import sys
+import asyncio  # isort:skip
+import sys  # isort:skip
 
 from twisted.internet import asyncioreactor  # isort:skip
 
@@ -8,26 +8,35 @@ if "twisted.internet.reactor" not in sys.modules:
     asyncio.set_event_loop(loop)
     asyncioreactor.install(loop)
 
-import asyncio
-
 import importlib
+
 
 from zope.interface import implementer
 
-from twisted.application.service import IServiceMaker, Service, MultiService
-from twisted.internet import endpoints, reactor, defer, threads
+from twisted.application.service import IServiceMaker, MultiService, Service
+from twisted.internet import defer, endpoints, reactor, threads
 from twisted.plugin import IPlugin
 from twisted.python import usage
 from twisted.web import server
-
 from txasgiresource import ASGIResource
+
 
 class Options(usage.Options):
 
     optParameters = [
         ["application", "a", None, "Application"],
-        ["description", "d", "tcp:8000:interface=127.0.0.1", "Twisted server description"],
-        ["proxy_headers", "p", False, "Parse proxy header and use them to replace client ip"],
+        [
+            "description",
+            "d",
+            "tcp:8000:interface=127.0.0.1",
+            "Twisted server description",
+        ],
+        [
+            "proxy_headers",
+            "p",
+            False,
+            "Parse proxy header and use them to replace client ip",
+        ],
     ]
 
 
@@ -54,14 +63,15 @@ class ServiceMaker(object):
     def makeService(self, options):
         asyncio.set_event_loop(reactor._asyncioEventloop)
 
-        module, function = options['application'].split(':')
+        module, function = options["application"].split(":")
         application = getattr(importlib.import_module(module), function)
 
         ms = MultiService()
 
-        resource = ASGIResource(application)
-        ms.addService(ASGIService(resource, options['description']))
+        resource = ASGIResource(application, use_proxy_headers=options["proxy_headers"])
+        ms.addService(ASGIService(resource, options["description"]))
 
         return ms
+
 
 txasgi = ServiceMaker()

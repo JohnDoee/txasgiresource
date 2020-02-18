@@ -40,6 +40,19 @@ As ASGI Protocol server on a different port and ip
 
     twistd -n txasgi -a yourdjangoproject.asgi:channel_layer -d tcp:5566:interface=0.0.0.0
 
+Supported specifications
+------------------------
+
+.. csv-table::
+   :header: "Specification", "Supported"
+
+   "asgi2", "Yes, through compatibility handler"
+   "asgi3", "Yes"
+   "HTTP", "Yes, v2.0"
+   "Websocket", "Yes, v2.0"
+   "Lifespan", "No"
+
+
 Status
 ------
 
