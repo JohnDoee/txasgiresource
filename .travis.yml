@@ -3,7 +3,7 @@ python:
   - "3.5"
   - "3.6"
 install:
-  - pip install twisted autobahn coveralls
+  - pip install twisted autobahn coveralls asgiref
 script:
   - nosetests --with-coverage --cover-package=txasgiresource
 after_success:
