@@ -12,15 +12,13 @@ class ApplicationManager:
     @defer.inlineCallbacks
     def stop(self):
         wait_for = []
-        for protocol, application_instance in list(self.application_instances.items()):
-            if protocol.do_cleanup():
-                wait_for.append(application_instance)
+        for protocol in list(self.application_instances.keys()):
+            promise = protocol.do_cleanup()
+            if promise:
+                wait_for.append(promise)
 
         for d in wait_for:
-            try:
-                yield defer.Deferred.fromFuture(d)
-            except CancelledError:
-                pass
+            yield defer.Deferred.fromFuture(d)
 
     def create_application_instance(self, protocol, scope):
         async def handle_reply(msg):
@@ -35,10 +33,10 @@ class ApplicationManager:
         return queue
 
     def finish_protocol(self, protocol):
-        wait_for = False
+        wait_for = None
         if protocol in self.application_instances:
             if not self.application_instances[protocol].done():
-                if self.application_instances[protocol].cancel():
+                if not self.application_instances[protocol].cancelled():
 
                     def handle_cancel_exception(f):
                         try:
@@ -49,6 +47,7 @@ class ApplicationManager:
                     self.application_instances[protocol].add_done_callback(
                         handle_cancel_exception
                     )
-                wait_for = True
+                    self.application_instances[protocol].cancel()
+                wait_for = self.application_instances[protocol]
             del self.application_instances[protocol]
         return wait_for
