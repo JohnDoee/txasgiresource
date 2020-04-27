@@ -4,7 +4,9 @@ Changelog
 Version  ()
 -----------------------------------------------------------
 
-*   Fixed memoryleak regarding websocket timeout
+*   Fixed memoryleak regarding websocket timeout and
+    lack of application cleanup
+*   Fixed bug related to shown exception on sendfile
 
 Version 2.2.0 (17-02-2020)
 -----------------------------------------------------------
