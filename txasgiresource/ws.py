@@ -1,5 +1,4 @@
 import logging
-from concurrent.futures import CancelledError
 
 from autobahn.twisted.websocket import (
     ConnectionDeny,
@@ -107,16 +106,13 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
                 {"type": "websocket.receive", "text": payload.decode("utf8")}
             )
 
-    @defer.inlineCallbacks
     def onClose(self, wasClean, code, reason):
         if self.opened:
             logger.info("Called onClose")
 
             self.queue.put_nowait({"type": "websocket.disconnect", "code": code})
 
-        promise = self.do_cleanup()
-        if promise:
-            yield defer.Deferred.fromFuture(promise)
+        self.do_cleanup()
 
     def timeoutConnection(self):
         logger.debug("Timeout from mixin")

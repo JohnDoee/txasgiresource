@@ -2,7 +2,7 @@ import hashlib
 import logging
 import os
 
-from twisted.internet import defer, reactor, error
+from twisted.internet import defer, error, reactor
 from twisted.web import http, resource, server, static
 
 from .utils import send_error_page
