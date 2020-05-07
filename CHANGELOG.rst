@@ -1,7 +1,7 @@
 Changelog
 =========
 
-Version  ()
+Version 2.2.1 (07-05-2020)
 -----------------------------------------------------------
 
 *   Fixed memoryleak regarding websocket timeout and
