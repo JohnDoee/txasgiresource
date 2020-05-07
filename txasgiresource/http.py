@@ -2,7 +2,7 @@ import hashlib
 import logging
 import os
 
-from twisted.internet import defer, reactor
+from twisted.internet import defer, error, reactor
 from twisted.web import http, resource, server, static
 
 from .utils import send_error_page
@@ -160,7 +160,10 @@ class ASGIHTTPResource(resource.Resource):
         if request.setETag(etag) != http.CACHED:
             finished_defer = request.notifyFinish()
             static.File(path).render(request)
-            yield finished_defer
+            try:
+                yield finished_defer
+            except error.ConnectionDone:
+                logger.debug("sendfile done")
 
     def do_cleanup(self, is_finished=False):
         logger.debug(

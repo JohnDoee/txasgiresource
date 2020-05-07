@@ -18,7 +18,6 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
     accept_promise = None
     queue = None
 
-    @defer.inlineCallbacks
     def _onConnect(self, request):
         scope = dict(self.factory.base_scope)
         scope["type"] = "websocket"
@@ -34,8 +33,8 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
         scope["subprotocols"] = subprotocols
 
         try:
-            self.queue = yield defer.maybeDeferred(
-                self.factory.application.create_application_instance, self, scope
+            self.queue = self.factory.application.create_application_instance(
+                self, scope
             )
             self.opened = True
         except Exception:
@@ -64,10 +63,10 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
             except defer.TimeoutError:
                 logger.debug("We hit a timeout")
                 self.dropConnection(abort=True)
-                break
+                return
             except defer.CancelledError:
                 self.dropConnection(abort=True)
-                break
+                return
 
             if not self.accepted:
                 if reply["type"] == "websocket.accept":
@@ -79,7 +78,7 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
                         ConnectionDeny(code=403, reason="Denied")
                     )
                     self.dropConnection(abort=True)
-                    break
+                    return
                 else:
                     continue
 
@@ -108,12 +107,12 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
             )
 
     def onClose(self, wasClean, code, reason):
-        if not self.opened:
-            return
+        if self.opened:
+            logger.info("Called onClose")
 
-        logger.info("Called onClose")
+            self.queue.put_nowait({"type": "websocket.disconnect", "code": code})
 
-        self.queue.put_nowait({"type": "websocket.disconnect", "code": code})
+        self.do_cleanup()
 
     def timeoutConnection(self):
         logger.debug("Timeout from mixin")
@@ -125,6 +124,7 @@ class ASGIWebSocketServerProtocol(WebSocketServerProtocol, policies.TimeoutMixin
         d.callback(msg)
 
     def do_cleanup(self):
+        self.setTimeout(None)
         return self.factory.application.finish_protocol(self)
 
 
